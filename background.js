@@ -30,6 +30,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 
   if (request.id == 'loginRequest') {
     // sent by passhub tab when user clicks on the URL link of password record, forward to the target URL
+    sendResponse({ farewell: `goodbye ${request.id} ${farewellCount}` });
     chrome.tabs.create({ url: request.url })
       .then(tab => {
         consoleLog('tab created');
