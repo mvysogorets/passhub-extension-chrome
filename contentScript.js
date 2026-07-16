@@ -1,7 +1,43 @@
 // GPL: https://github.com/passff/passff
-
+console.log('✓ PassHub: contentScript.js loaded on', window.location.href);
 // const consoleLog = console.log;
 const consoleLog = () => { };
+
+// Inject Passkey interceptor into page context (must run before page scripts)
+(function injectPasskeyInterceptor() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('passkeyInterceptor.js');
+  script.onload = function() {
+    console.log('✓ PassHub: Passkey interceptor injected successfully');
+    this.remove();
+  };
+  script.onerror = function() {
+    console.error('✗ PassHub: Failed to inject passkeyInterceptor.js');
+    this.remove();
+  };
+  (document.head || document.documentElement).appendChild(script);
+})();
+
+// Relay: postMessage (page) ↔ chrome.runtime.sendMessage (background)
+window.addEventListener('message', async (event) => {
+  if (event.source !== window) return;
+  if (!event.data || event.data.type !== 'passhub-request') return;
+
+  const { requestId, id, data } = event.data;
+  consoleLog('PassHub relay: forwarding to background', id);
+
+  try {
+    const response = await chrome.runtime.sendMessage({ id, data });
+    window.postMessage({ type: 'passhub-response', requestId, response }, '*');
+  } catch (error) {
+    consoleLog('PassHub relay error:', error);
+    window.postMessage({
+      type: 'passhub-response',
+      requestId,
+      response: { error: error.message, useSystem: true }
+    }, '*');
+  }
+});
 
 function fireEvent(el, name) {
   el.dispatchEvent(

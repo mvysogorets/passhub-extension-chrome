@@ -38,7 +38,8 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['contentScript.js']
+          files: ['contentScript.js'],
+          world: 'MAIN'
         })
           .then((injectionResult) => {
             consoleLog('inJectionResult');
@@ -65,12 +66,13 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     chrome.storage.session.set({ passhub: { peer: sender, version: ("version" in request) ? request.version : 1 } });
     sendResponse({ id: "63 Ok" });
 
+    // Inject both scripts
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
-      files: ['passhubTabScript.js']
+      files: ['passhubTabScript.js', 'passhubPasskeyHandler.js']
     })
       .then((injectionResult) => {
-        consoleLog('passhubTabScript InjectionResult');
+        consoleLog('passhubTabScript + passhubPasskeyHandler InjectionResult');
         consoleLog(injectionResult);
         //        sendResponse({ id: "Ok" });
       })
@@ -106,6 +108,12 @@ function notConnected() {
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
   consoleLog("bg got (popup) message");
   consoleLog(popupMessage);
+
+  // Обработка Passkey запросов от content script
+  if (popupMessage.id === 'passkey-create-request' || popupMessage.id === 'passkey-get-request') {
+    handlePasskeyRequest(popupMessage, sender, sendResponse);
+    return true; // Асинхронный ответ
+  }
 
   sendResponse({ status: 'wait' });
 
@@ -164,3 +172,56 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   });
 })
+
+/**
+ * Обработка Passkey запросов
+ */
+async function handlePasskeyRequest(message, sender, sendResponse) {
+  consoleLog('Handling passkey request:', message);
+
+  try {
+    // Получить PassHub вкладку
+    const passhubData = await chrome.storage.session.get("passhub");
+
+    if (!passhubData.passhub) {
+      sendResponse({
+        error: 'PassHub not connected',
+        useSystem: true
+      });
+      return;
+    }
+
+    // Переслать запрос в PassHub
+    const passkeyMessage = {
+      id: message.id,
+      data: message.data,
+      senderTab: {
+        id: sender.tab.id,
+        url: sender.tab.url,
+        title: sender.tab.title
+      }
+    };
+
+    try {
+      const response = await chrome.tabs.sendMessage(
+        passhubData.passhub.peer.tab.id,
+        passkeyMessage
+      );
+      consoleLog('PassHub response:', response);
+      sendResponse(response);
+    } catch (err) {
+      consoleLog('Error sending to PassHub:', err);
+      sendResponse({
+        error: err.message,
+        useSystem: true
+      });
+    }
+
+  } catch (error) {
+    consoleLog('Error in handlePasskeyRequest:', error);
+    sendResponse({
+      error: error.message,
+      useSystem: true
+    });
+  }
+}
