@@ -18,8 +18,18 @@
   "background": {
     "service_worker": "background.js"
   },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
   "externally_connectable": {
     "matches": [
+      "https://passhub.com/*",
+      "https://passhub.net/*",
+      "https://passhub.ch/*",
+      "https://passhub.us/*",
+      "https://passhub.eu/*",
+      "https://*.passhub.com/*",
       "https://*.passhub.net/*",
       "https://*.passhub.ch/*",
       "https://*.passhub.us/*",

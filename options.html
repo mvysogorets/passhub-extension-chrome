@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PassHub Extension Settings</title>
+
+  <style>
+    #url,
+    #url:active,
+    #url:focus,
+    #url:focus-visible {
+      margin: 0 0.7em 0 0;
+      padding: 6px;
+      font-size: large;
+      border: thin solid lightgrey;
+      outline: none;
+    }
+
+    #submit {
+      color: white;
+      background-color: rgb(4, 170, 109);
+      border-radius: 5px;
+      padding: 6px 18px;
+      border: none;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    #options-server {
+      margin: 0;
+      padding: 1.5em 1.5em 3em 1.5em;
+      font-family: sans-serif;
+      font-size: 16px;
+      background: rgba(0, 0, 0, 0.04);
+      width: 436px;
+      height: 110px;
+
+    }
+  </style>
+</head>
+
+<body id="options-server">
+
+  <div style="margin-bottom: 0em">
+    <form>
+      <div style="margin-bottom: 0.5em; color:rgba(0,0,0,0.7)"><label for="url">Default PassHub Server URL:</label>
+      </div>
+      <div style="font-size:16px; display:flex">
+        <input type='text' id="url" placeholder="passhub.net" size="30">
+        <input id="submit" type="submit" value="Save">
+      </div>
+      <div id='error-message' style="color:red; margin-top: 0.5em; font-size: smaller;"></div>
+    </form>
+
+    <div style="margin: 2em 0 0 0; font-size: smaller;">Configure this extension to use with to your own PassHub
+      instance
+      (e.g.,&nbsp;mycompany.passhub.us).</div>
+
+  </div>
+  <script src="options.js"></script>
+</body>
+
+</html>

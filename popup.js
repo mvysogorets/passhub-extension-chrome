@@ -26,8 +26,40 @@ function validFramesRemove(frame) {
 
 function notConnected() {
   showPage(".login-page");
-  document.getElementById('server-name-element').style.display = 'none';
-  document.querySelector('#passhub-link').onclick = () => { activatePassHubTab() };
+
+  browser.storage.local.get("passhubHost")
+    .then(data => {
+      consoleLog("storage");
+      consoleLog(data);
+      if (!data || !data.passhubHost || (data.passhubHost == '')) {
+        currentServer = { passhubHost: "passhub.net" };
+      } else {
+        currentServer = data;
+      }
+      //      document.getElementById('url').value = currentServer.passhubHost;
+      //      document.getElementById('current-server').innerText = currentServer.passhubHost;
+      let passhubHost = currentServer.passhubHost.toLowerCase();
+
+      document.getElementById('server-name-element').style.display = 'none';
+      document.getElementById('login-to-passhub-link').innerText = passhubHost;
+
+      document.querySelector('#passhub-link').onclick = () => { activatePassHubTab(passhubHost) };
+
+
+
+      /*
+      if (passhubHost == "passhub.net") {
+        document.getElementById('server-name-element').style.display = 'none';
+      } else {
+        document.getElementById('server-name-element').innerText = passhubHost;
+        document.getElementById('login-to-passhub-link').innerText = passhubHost;
+
+        document.getElementById('server-name-element').style.display = 'initial';
+        document.querySelector('#passhub-link').onclick = () => { activatePassHubTab(passhubHost) };
+      }
+        */
+
+    })
 }
 
 function gotPaymentStatus(tab, frame, response) {
@@ -601,7 +633,7 @@ function activatePassHubDocTab() {
         return;
       }
     }
-    window.open('https://passhub.net/doc/browser-extension', 'target="_blank"');
+    window.open('https://passhub.net/doc/browser-extension', '_blank');
   });
 }
 
@@ -622,7 +654,7 @@ function activatePassHubTab(passhubHost = "passhub.net") {
           return;
         }
       }
-      window.open(`https://${passhubHost}`, 'target="_blank"');
+      window.open(`https://${passhubHost}`, '_blank');
     })
     .catch(err => {
       consoleLog('catch 657');
