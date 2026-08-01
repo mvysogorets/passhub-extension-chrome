@@ -41,10 +41,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
                 })
                 .catch(error => {
                     consoleLog('❌ Error:', error);
-                    sendResponse({ 
-                        error: error.message,
-                        useSystem: true // Fallback на системный WebAuthn
-                    });
+                    sendResponse({ error: error.message });
                 });
             
             return true; // Keep channel open for async response

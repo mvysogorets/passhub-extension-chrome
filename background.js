@@ -188,8 +188,7 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
 
     if (!passhubData.passhub) {
       sendResponse({
-        error: 'PassHub not connected',
-        useSystem: true
+        error: 'PassHub not connected'
       });
       return;
     }
@@ -215,16 +214,14 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     } catch (err) {
       consoleLog('Error sending to PassHub:', err);
       sendResponse({
-        error: err.message,
-        useSystem: true
+        error: err.message
       });
     }
 
   } catch (error) {
     consoleLog('Error in handlePasskeyRequest:', error);
     sendResponse({
-      error: error.message,
-      useSystem: true
+      error: error.message
     });
   }
 }
