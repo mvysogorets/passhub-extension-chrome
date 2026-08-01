@@ -373,6 +373,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   consoleLog(sender.tab ?
     "from a content script:" + sender.tab.url :
     "from the extension");
+
+  if (message.id === "passkey-create-request" || message.id === "passkey-get-request") {
+    return false;
+  }
+
   if (message.id === "loginRequest") {
     initFillCredentials();
 
