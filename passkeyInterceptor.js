@@ -263,9 +263,16 @@
                 id: data.credentialId,
                 rawId: base64ToArrayBuffer(data.credentialId),
                 type: 'public-key',
+                authenticatorAttachment: null,
+                getClientExtensionResults() {
+                    return { credProps: { rk: true } };
+                },
                 response: {
                     clientDataJSON: base64ToArrayBuffer(data.clientDataJSON),
-                    attestationObject: base64ToArrayBuffer(data.attestationObject)
+                    attestationObject: base64ToArrayBuffer(data.attestationObject),
+                    getTransports() {
+                        return [];
+                    }
                 }
             };
         } else {
@@ -274,6 +281,10 @@
                 id: data.credentialId,
                 rawId: base64ToArrayBuffer(data.credentialId),
                 type: 'public-key',
+                authenticatorAttachment: null,
+                getClientExtensionResults() {
+                    return {};
+                },
                 response: {
                     clientDataJSON: base64ToArrayBuffer(data.clientDataJSON),
                     authenticatorData: base64ToArrayBuffer(data.authenticatorData),
