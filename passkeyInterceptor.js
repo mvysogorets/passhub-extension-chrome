@@ -134,12 +134,14 @@
                 return reconstructCredential(response.credential, 'create');
             } else if (response && response.useSystem) {
                 return originalCreate(options);
+            } else if (response && response.error) {
+                throw new Error(response.error);
             } else {
                 throw new DOMException('PassHub: passkey creation failed', 'NotAllowedError');
             }
         } catch (error) {
             console.error('PassHub passkey creation failed:', error);
-            return originalCreate(options);
+            throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
         }
     };
 
@@ -192,12 +194,14 @@
                 return reconstructCredential(response.assertion, 'get');
             } else if (response && response.useSystem) {
                 return originalGet(options);
+            } else if (response && response.error) {
+                throw new Error(response.error);
             } else {
                 throw new DOMException('PassHub: passkey authentication failed', 'NotAllowedError');
             }
         } catch (error) {
             console.error('PassHub passkey authentication failed:', error);
-            return originalGet(options);
+            throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
         }
     };
 

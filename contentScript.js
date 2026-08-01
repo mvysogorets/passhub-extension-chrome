@@ -31,10 +31,13 @@ window.addEventListener('message', async (event) => {
     window.postMessage({ type: 'passhub-response', requestId, response }, '*');
   } catch (error) {
     consoleLog('PassHub relay error:', error);
+    const message = error.message === 'Extension context invalidated.'
+      ? 'PassHub extension was reloaded. Reload this page and try again.'
+      : error.message;
     window.postMessage({
       type: 'passhub-response',
       requestId,
-      response: { error: error.message, useSystem: true }
+      response: { error: message }
     }, '*');
   }
 });
