@@ -40,15 +40,15 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
         consoleLog('📨 Received from Extension:', request);
 
         // Ping-pong для проверки связи
-        if (request.action === 'ping') {
+        if (request.id === 'ping') {
             consoleLog('🏓 Responding to ping');
             sendResponse({ status: 'ok', context: 'passhubTabScript' });
             return true;
         }
 
         // Passkey request от Extension (forwarded from passkeyInterceptor via contentScript)
-        if (request.action === 'passkey-create-request' || request.action === 'passkey-get-request') {
-            consoleLog('🔑 Passkey request:', request.action);
+        if (request.id === 'passkey-create-request' || request.id === 'passkey-get-request') {
+            consoleLog('🔑 Passkey request:', request.id);
             
             // Async обработка: отправить в PassHub API через bridge
             handlePasskeyRequest(request)
@@ -100,12 +100,12 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
             // Отправить через CustomEvent в bridge (ISOLATED → MAIN via document)
             const requestEvent = new CustomEvent('passhub-bridge-request', {
                 detail: {
-                    id: request.action,
+                    id: request.id,
                     data: request.data,
                     requestId: requestId
                 }
             });
-            document.dispatchEvent(requestEvent);
+            
 
             // Слушать ответ от bridge через CustomEvent
             const responseHandler = (event) => {
@@ -123,7 +123,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
             };
 
             document.addEventListener('passhub-bridge-response', responseHandler);
-
+            document.dispatchEvent(requestEvent);
             // Timeout для cleanup (30 секунд)
             setTimeout(() => {
                 document.removeEventListener('passhub-bridge-response', responseHandler);

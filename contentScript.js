@@ -1,8 +1,8 @@
 // GPL: https://github.com/passff/passff
 console.log('✓ PassHub: contentScript.js loaded on', window.location.href);
 // const consoleLog = console.log;
-const consoleLog = () => { };
-
+// const consoleLog = () => { };
+  const consoleLog = console.log;
 // Inject Passkey interceptor into page context (must run before page scripts)
 (function injectPasskeyInterceptor() {
   const script = document.createElement('script');

@@ -1,7 +1,8 @@
 'use strict';
 
 // const consoleLog = console.log;
-const consoleLog = () => { };
+// const consoleLog = () => { };
+const consoleLog = console.log;
 
 let farewellCount = 0;
 
@@ -69,10 +70,12 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     // Inject both scripts
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
-      files: ['passhubTabScript.js', 'passhubPasskeyHandler.js']
+      // files: ['passhubTabScript.js', 'passhubPasskeyHandler.js']
+      files: ['passhubTabScript.js']
     })
       .then((injectionResult) => {
-        consoleLog('passhubTabScript + passhubPasskeyHandler InjectionResult');
+        // consoleLog('passhubTabScript + passhubPasskeyHandler InjectionResult');
+        consoleLog('passhubTabScript InjectionResult');
         consoleLog(injectionResult);
         //        sendResponse({ id: "Ok" });
       })

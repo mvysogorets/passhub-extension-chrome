@@ -14,16 +14,11 @@
 
         const { id, data, requestId } = event.detail;
 
-        // Отправляем в passhub-passkey-api.js через window.postMessage (MAIN context)
-        window.postMessage({
-            type: 'passhub-passkey-request',
-            id: id,
-            data: data
-        }, '*');
+        
 
         // Слушаем ответ от passhub-passkey-api.js
         const responseHandler = (e) => {
-            if (e.data && e.data.type === 'passhub-passkey-response') {
+            if (e.data?.type === 'passhub-passkey-response' && e.data.requestId === requestId) {
                 console.log('📥 Bridge received response from PassHubPasskeyAPI:', e.data.result);
                 window.removeEventListener('message', responseHandler);
 
@@ -40,6 +35,13 @@
         };
 
         window.addEventListener('message', responseHandler);
+        // Отправляем в passhub-passkey-api.js через window.postMessage (MAIN context)
+        window.postMessage({
+            type: 'passhub-passkey-request',
+            requestId,
+            id,
+            data
+        }, '*');
 
         // Timeout для cleanup
         setTimeout(() => {
