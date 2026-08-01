@@ -314,3 +314,116 @@ svg circle.otp-dial {
   font-size: 16px;
   line-height: 22px;
 }
+
+body.passkey-view header > div {
+  justify-content: flex-end;
+}
+
+body.passkey-view {
+  width: 100%;
+  min-width: 0;
+}
+
+body.passkey-view header img {
+  margin-right: auto;
+}
+
+body.passkey-view header [title="Show passwords"],
+body.passkey-view header [title="Show credit cards"],
+body.passkey-view header .help {
+  display: none;
+}
+
+body.passkey-view main {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.passkey-page {
+  margin: 0;
+}
+
+.passkey-heading {
+  margin-bottom: 10px;
+  font-family: OpenSansBold;
+  font-size: 18px;
+  line-height: 25px;
+  color: #1b1b26;
+}
+
+.passkey-message {
+  font-size: 15px;
+  line-height: 22px;
+  color: #1b1b26;
+}
+
+#passkey-site {
+  display: block;
+  overflow: hidden;
+  font-family: OpenSansBold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passkey-user {
+  min-height: 19px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #8d8d94;
+  font-size: 14px;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passkey-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.passkey-actions button,
+.passkey-cancel {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  border-radius: 5px;
+  font-family: OpenSansBold;
+  font-size: 14px;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.passkey-primary {
+  border: 1px solid #31ba68;
+  background: #31ba68;
+  color: white;
+}
+
+.passkey-primary:hover {
+  border-color: #269953;
+  background: #269953;
+}
+
+.passkey-secondary {
+  border: 1px solid rgba(27, 27, 38, 0.2);
+  background: white;
+  color: #1b1b26;
+}
+
+.passkey-secondary:hover {
+  background: rgba(27, 27, 38, 0.05);
+}
+
+.passkey-cancel {
+  min-height: 32px;
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: #8d8d94;
+  font-family: OpenSans;
+}
+
+.passkey-cancel:hover {
+  color: #1b1b26;
+}

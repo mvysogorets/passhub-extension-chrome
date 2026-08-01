@@ -57,7 +57,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["passkeyInterceptor.js", "passhubBridge.js"],
+      "resources": ["passkeyInterceptor.js", "passhubBridge.js", "popup.html"],
       "matches": ["<all_urls>"]
     }
   ],

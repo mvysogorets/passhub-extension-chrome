@@ -102,7 +102,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
             setTimeout(() => {
                 window.removeEventListener('message', responseHandler);
                 reject(new Error('PassHub API response timeout'));
-            }, 30000);
+            }, 60000);
         });
     }
 

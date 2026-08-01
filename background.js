@@ -205,8 +205,14 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     };
 
     try {
+      const passhubTabId = passhubData.passhub.peer.tab.id;
+      await chrome.tabs.update(passhubTabId, { active: true });
+      if (passhubData.passhub.peer.tab.windowId !== undefined) {
+        await chrome.windows.update(passhubData.passhub.peer.tab.windowId, { focused: true });
+      }
+
       const response = await chrome.tabs.sendMessage(
-        passhubData.passhub.peer.tab.id,
+        passhubTabId,
         passkeyMessage
       );
       consoleLog('PassHub response:', response);

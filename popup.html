@@ -101,6 +101,20 @@
       </div>
     </div>
 
+    <div class="page passkey-page">
+      <div class="passkey-heading" id="passkey-heading">Create passkey</div>
+      <div class="passkey-message">
+        <span id="passkey-action">Save a passkey for</span>
+        <span id="passkey-site"></span>
+      </div>
+      <div class="passkey-user" id="passkey-user"></div>
+      <div class="passkey-actions">
+        <button class="passkey-primary" id="passkey-passhub" type="button">Save in PassHub</button>
+        <button class="passkey-secondary" id="passkey-system" type="button">Use system authenticator</button>
+      </div>
+      <button class="passkey-cancel" id="passkey-cancel" type="button">Cancel</button>
+    </div>
+
     <div class="page advice-page">
       <div id="danger-http">
         <span>Danger: </span> unsecured http page, proceed at your own risk.
@@ -134,7 +148,7 @@
     </div>
 
   </main>
-  <script src="popup.js"></script>
+  <script src="popup-bootstrap.js"></script>
 </body>
 
 </html>
