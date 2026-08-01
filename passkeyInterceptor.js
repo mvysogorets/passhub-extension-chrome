@@ -256,11 +256,18 @@
         return bytes.buffer;
     }
 
+    function normalizeBase64Url(base64) {
+        return base64
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
+
     function reconstructCredential(data, type) {
         if (type === 'create') {
             // PublicKeyCredential для создания
             return {
-                id: data.credentialId,
+                id: normalizeBase64Url(data.credentialId),
                 rawId: base64ToArrayBuffer(data.credentialId),
                 type: 'public-key',
                 authenticatorAttachment: null,
@@ -278,7 +285,7 @@
         } else {
             // PublicKeyCredential для аутентификации
             return {
-                id: data.credentialId,
+                id: normalizeBase64Url(data.credentialId),
                 rawId: base64ToArrayBuffer(data.credentialId),
                 type: 'public-key',
                 authenticatorAttachment: null,
