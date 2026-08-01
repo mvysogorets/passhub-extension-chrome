@@ -15,23 +15,6 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
     consoleLog('passhubTabScript start');
 
-    // Инжектировать bridge в MAIN context (один раз)
-    // Bridge загружается через script.src для соблюдения CSP (Content Security Policy)
-    let bridgeInjected = false;
-    function injectBridge() {
-        if (bridgeInjected) return;
-        
-        const script = document.createElement('script');
-        script.src = chrome.runtime.getURL('passhubBridge.js');
-        (document.head || document.documentElement).appendChild(script);
-        script.remove(); // Cleanup DOM после загрузки
-        bridgeInjected = true;
-        consoleLog('✅ Bridge injected into MAIN context');
-    }
-
-    // Inject bridge сразу при загрузке
-    injectBridge();
-
     /**
      * Слушать сообщения от Extension (background.js)
      * Работает в ISOLATED context, имеет доступ к chrome.runtime API
@@ -75,12 +58,9 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
      * 
      * FLOW:
      * 1. Проверить что PassHubPasskeyAPI загружен на странице
-     * 2. Создать requestId для матчинга response
-     * 3. Отправить CustomEvent 'passhub-bridge-request' на document (ISOLATED → MAIN)
-     * 4. Bridge получит event, отправит window.postMessage в passhub-passkey-api.js (MAIN → MAIN)
-     * 5. PassHubPasskeyAPI обработает, вернет window.postMessage
-     * 6. Bridge получит response, отправит CustomEvent 'passhub-bridge-response' (MAIN → ISOLATED)
-     * 7. Этот handler получит response и вернет в Extension
+    * 2. Создать requestId для матчинга response
+    * 3. Отправить запрос в PassHubPasskeyAPI через window.postMessage
+    * 4. Получить коррелированный response и вернуть его в Extension
      * 
      * @param {Object} request - Passkey request {action, data}
      * @returns {Promise<Object>} - WebAuthn credential или error
@@ -95,39 +75,36 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
         return new Promise((resolve, reject) => {
             const requestId = Date.now() + Math.random();
-            consoleLog(`📤 Sending to bridge with requestId: ${requestId}`);
+            consoleLog(`📤 Sending to PassHub API with requestId: ${requestId}`);
 
-            // Отправить через CustomEvent в bridge (ISOLATED → MAIN via document)
-            const requestEvent = new CustomEvent('passhub-bridge-request', {
-                detail: {
-                    id: request.id,
-                    data: request.data,
-                    requestId: requestId
-                }
-            });
-            
-
-            // Слушать ответ от bridge через CustomEvent
             const responseHandler = (event) => {
-                if (event.detail.requestId === requestId) {
-                    consoleLog(`📥 Response received for requestId: ${requestId}`, event.detail.result);
-                    document.removeEventListener('passhub-bridge-response', responseHandler);
-                    
-                    const result = event.detail.result;
-                    if (result && result.error) {
-                        reject(new Error(result.error));
-                    } else {
-                        resolve(result);
-                    }
+                if (event.source !== window) return;
+                if (event.data?.type !== 'passhub-passkey-response') return;
+                if (event.data.requestId !== requestId) return;
+
+                consoleLog(`📥 Response received for requestId: ${requestId}`, event.data.result);
+                window.removeEventListener('message', responseHandler);
+
+                const result = event.data.result;
+                if (result && result.error) {
+                    reject(new Error(result.error));
+                } else {
+                    resolve(result);
                 }
             };
 
-            document.addEventListener('passhub-bridge-response', responseHandler);
-            document.dispatchEvent(requestEvent);
+            window.addEventListener('message', responseHandler);
+            window.postMessage({
+                type: 'passhub-passkey-request',
+                requestId,
+                id: request.id,
+                data: request.data
+            }, window.location.origin);
+
             // Timeout для cleanup (30 секунд)
             setTimeout(() => {
-                document.removeEventListener('passhub-bridge-response', responseHandler);
-                reject(new Error('Bridge response timeout'));
+                window.removeEventListener('message', responseHandler);
+                reject(new Error('PassHub API response timeout'));
             }, 30000);
         });
     }
