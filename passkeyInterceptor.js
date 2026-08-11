@@ -169,8 +169,17 @@
                 id: arrayBufferToBase64(cred.id),
                 type: cred.type
             })) || [],
+            userVerification: publicKey.userVerification || 'preferred',
             origin: window.location.origin
         };
+
+        console.info('[PassHub WebAuthn] authentication request', {
+            rpId: passkeyRequest.rpId,
+            origin: passkeyRequest.origin,
+            userVerification: passkeyRequest.userVerification,
+            allowCredentialsCount: passkeyRequest.allowCredentials.length,
+            extensionNames: Object.keys(publicKey.extensions || {})
+        });
 
         try {
             const response = await sendToExtension({
@@ -272,6 +281,23 @@
             };
         } else {
             // PublicKeyCredential для аутентификации
+            const authenticatorData = new Uint8Array(base64ToArrayBuffer(data.authenticatorData));
+            const clientData = JSON.parse(new TextDecoder().decode(base64ToArrayBuffer(data.clientDataJSON)));
+            const flags = authenticatorData[32];
+            console.info('[PassHub WebAuthn] assertion returned to RP', {
+                credentialId: normalizeBase64Url(data.credentialId),
+                clientDataType: clientData.type,
+                origin: clientData.origin,
+                crossOrigin: clientData.crossOrigin,
+                flags: `0x${flags.toString(16).padStart(2, '0')}`,
+                userPresent: Boolean(flags & 0x01),
+                userVerified: Boolean(flags & 0x04),
+                backupEligible: Boolean(flags & 0x08),
+                backupState: Boolean(flags & 0x10),
+                signCount: new DataView(authenticatorData.buffer).getUint32(33, false),
+                userHandleLength: data.userHandle ? base64ToArrayBuffer(data.userHandle).byteLength : 0,
+                signatureLength: base64ToArrayBuffer(data.signature).byteLength
+            });
             return {
                 id: normalizeBase64Url(data.credentialId),
                 rawId: base64ToArrayBuffer(data.credentialId),
@@ -282,7 +308,7 @@
                 },
                 response: {
                     clientDataJSON: base64ToArrayBuffer(data.clientDataJSON),
-                    authenticatorData: base64ToArrayBuffer(data.authenticatorData),
+                    authenticatorData: authenticatorData.buffer,
                     signature: base64ToArrayBuffer(data.signature),
                     userHandle: data.userHandle ? base64ToArrayBuffer(data.userHandle) : null
                 }
