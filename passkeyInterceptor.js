@@ -8,6 +8,9 @@
 'use strict';
 
 (function() {
+    if (window.__passHubPasskeyInterceptorInstalled) return;
+    window.__passHubPasskeyInterceptorInstalled = true;
+
     if (!window.PublicKeyCredential) {
         console.log('PassHub Extension: WebAuthn not supported');
         return;

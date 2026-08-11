@@ -9,6 +9,9 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 (function() {
     'use strict';
 
+    if (globalThis.__passHubTabScriptInstalled) return;
+    globalThis.__passHubTabScriptInstalled = true;
+
     const consoleLog = (...args) => {
         console.log('%c[passhubTabScript]', 'color: #4CAF50; font-weight: bold', ...args);
     };

@@ -3,8 +3,10 @@ console.log('✓ PassHub: contentScript.js loaded on', window.location.href);
 // const consoleLog = console.log;
 // const consoleLog = () => { };
   const consoleLog = console.log;
+const installPasskeyBridge = !globalThis.__passHubPasskeyBridgeInstalled;
+globalThis.__passHubPasskeyBridgeInstalled = true;
 // Inject Passkey interceptor into page context (must run before page scripts)
-(function injectPasskeyInterceptor() {
+if (installPasskeyBridge) (function injectPasskeyInterceptor() {
   const script = document.createElement('script');
   script.src = chrome.runtime.getURL('passkeyInterceptor.js');
   script.onload = function() {
@@ -19,7 +21,7 @@ console.log('✓ PassHub: contentScript.js loaded on', window.location.href);
 })();
 
 // Relay: postMessage (page) ↔ chrome.runtime.sendMessage (background)
-window.addEventListener('message', async (event) => {
+if (installPasskeyBridge) window.addEventListener('message', async (event) => {
   if (event.source !== window) return;
   if (!event.data || event.data.type !== 'passhub-request') return;
 
