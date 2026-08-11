@@ -290,6 +290,19 @@
             const userHandle = allowedIds.length || !data.userHandle
                 ? null
                 : base64ToArrayBuffer(data.userHandle);
+            const credentialJson = {
+                id: credentialId,
+                rawId: credentialId,
+                response: {
+                    clientDataJSON: normalizeBase64Url(data.clientDataJSON),
+                    authenticatorData: normalizeBase64Url(data.authenticatorData),
+                    signature: normalizeBase64Url(data.signature),
+                    userHandle: userHandle ? arrayBufferToBase64(userHandle) : null
+                },
+                authenticatorAttachment: null,
+                clientExtensionResults: {},
+                type: 'public-key'
+            };
             console.info('[PassHub WebAuthn] assertion returned to RP', JSON.stringify({
                 credentialId,
                 credentialAllowed: !allowedIds.length || allowedIds.includes(credentialId),
@@ -305,6 +318,7 @@
                 signCount: new DataView(authenticatorData.buffer).getUint32(33, false),
                 userHandleLength: userHandle?.byteLength || 0,
                 userHandleOmittedForAllowList: Boolean(allowedIds.length && data.userHandle),
+                toJSONSupported: true,
                 signatureLength: base64ToArrayBuffer(data.signature).byteLength
             }));
             return {
@@ -314,6 +328,9 @@
                 authenticatorAttachment: null,
                 getClientExtensionResults() {
                     return {};
+                },
+                toJSON() {
+                    return credentialJson;
                 },
                 response: {
                     clientDataJSON: base64ToArrayBuffer(data.clientDataJSON),
