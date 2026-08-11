@@ -216,6 +216,16 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
         passkeyMessage
       );
       consoleLog('PassHub response:', response);
+
+      try {
+        await chrome.tabs.update(sender.tab.id, { active: true });
+        if (sender.tab.windowId !== undefined) {
+          await chrome.windows.update(sender.tab.windowId, { focused: true });
+        }
+      } catch (focusError) {
+        consoleLog('Could not return to relying party tab:', focusError);
+      }
+
       sendResponse(response);
     } catch (err) {
       consoleLog('Error sending to PassHub:', err);
