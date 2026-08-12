@@ -1,8 +1,8 @@
 /**
  * passkeyInterceptor.js
  *
- * Перехватывает WebAuthn запросы (navigator.credentials.create/get)
- * и показывает overlay с выбором: PassHub или системный authenticator.
+ * Intercepts WebAuthn requests (navigator.credentials.create/get)
+ * and displays an overlay for choosing PassHub or the system authenticator.
  */
 
 'use strict';
@@ -24,8 +24,8 @@
     const popupUrl = extensionScriptUrl ? new URL('popup.html', extensionScriptUrl) : null;
 
     /**
-     * Показать overlay с выбором authenticator'а.
-     * Возвращает Promise<'passhub' | 'system' | 'cancel'>
+    * Display an overlay for choosing an authenticator.
+    * Returns Promise<'passhub' | 'system' | 'cancel'>.
      */
     function showPasskeyChooser(mode, siteName, userName) {
         return new Promise((resolve) => {
@@ -78,7 +78,7 @@
     }
 
     /**
-     * Перехват создания нового passkey (регистрация)
+    * Intercept new passkey creation (registration).
      */
     navigator.credentials.create = async function(options) {
         console.log('PassHub: Intercepted credentials.create', options);
@@ -134,12 +134,12 @@
     };
 
     /**
-     * Перехват использования passkey (аутентификация)
+    * Intercept passkey use (authentication).
      */
     navigator.credentials.get = async function(options) {
         console.log('PassHub: Intercepted credentials.get', options);
 
-        // Conditional UI (autofill) — не перехватываем, пусть браузер обрабатывает
+        // Let the browser handle Conditional UI (autofill).
         if (options && options.mediation === 'conditional') {
             return originalGet(options);
         }
@@ -229,7 +229,7 @@
     }
 
     /**
-     * Утилиты
+    * Utilities
      */
     function arrayBufferToBase64(buffer) {
         const bytes = new Uint8Array(buffer);
@@ -241,7 +241,7 @@
     }
 
     function base64ToArrayBuffer(base64) {
-        // Восстановить padding
+        // Restore padding.
         base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
         while (base64.length % 4 !== 0) {
             base64 += '=';
@@ -263,7 +263,7 @@
 
     function reconstructCredential(data, type, request = {}) {
         if (type === 'create') {
-            // PublicKeyCredential для создания
+            // PublicKeyCredential for registration.
             return {
                 id: normalizeBase64Url(data.credentialId),
                 rawId: base64ToArrayBuffer(data.credentialId),
@@ -281,7 +281,7 @@
                 }
             };
         } else {
-            // PublicKeyCredential для аутентификации
+            // PublicKeyCredential for authentication.
             const authenticatorData = new Uint8Array(base64ToArrayBuffer(data.authenticatorData));
             const clientData = JSON.parse(new TextDecoder().decode(base64ToArrayBuffer(data.clientDataJSON)));
             const flags = authenticatorData[32];
@@ -342,6 +342,6 @@
         }
     }
 
-    // Уведомить extension что перехватчик готов
+    // Notify the extension that the interceptor is ready.
     window.postMessage({ type: 'passhub-interceptor-ready' }, window.location.origin);
 })();

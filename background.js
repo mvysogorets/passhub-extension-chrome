@@ -112,10 +112,10 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
   consoleLog("bg got (popup) message");
   consoleLog(popupMessage);
 
-  // Обработка Passkey запросов от content script
+  // Handle passkey requests from the content script.
   if (popupMessage.id === 'passkey-create-request' || popupMessage.id === 'passkey-get-request') {
     handlePasskeyRequest(popupMessage, sender, sendResponse);
-    return true; // Асинхронный ответ
+    return true; // Keep the channel open for an asynchronous response.
   }
 
   sendResponse({ status: 'wait' });
@@ -177,13 +177,13 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 /**
- * Обработка Passkey запросов
+ * Handle passkey requests.
  */
 async function handlePasskeyRequest(message, sender, sendResponse) {
   consoleLog('Handling passkey request:', message);
 
   try {
-    // Получить PassHub вкладку
+    // Get the PassHub tab.
     const passhubData = await chrome.storage.session.get("passhub");
 
     if (!passhubData.passhub) {
@@ -193,7 +193,7 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
       return;
     }
 
-    // Переслать запрос в PassHub
+    // Forward the request to PassHub.
     const passkeyMessage = {
       id: message.id,
       data: message.data,

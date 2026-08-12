@@ -1,8 +1,8 @@
 /**
  * passhubPasskeyHandler.js
  * 
- * Обработчик Passkey запросов внутри PassHub вкладки
- * Инжектируется в passhub.net для обработки запросов от extension
+ * Handles passkey requests inside the PassHub tab.
+ * Injected into passhub.net to process requests from the extension.
  */
 
 'use strict';
@@ -10,7 +10,7 @@
 (function() {
     console.log('PassHub Passkey Handler loaded');
 
-    // Слушать сообщения от extension
+    // Listen for messages from the extension.
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('PassHub received message:', message);
 
@@ -18,7 +18,7 @@
             handleCreatePasskey(message.data, message.senderTab)
                 .then(result => sendResponse(result))
                 .catch(error => sendResponse({ error: error.message, useSystem: true }));
-            return true; // Асинхронный ответ
+            return true; // Keep the channel open for an asynchronous response.
         }
 
         if (message.id === 'passkey-get-request') {
@@ -30,12 +30,12 @@
     });
 
     /**
-     * Обработка создания нового Passkey
+    * Handle new passkey creation.
      */
     async function handleCreatePasskey(data, senderTab) {
         console.log('Creating passkey for:', data);
 
-        // Показать диалог пользователю
+        // Display a confirmation dialog.
         const userChoice = await showPasskeyDialog({
             type: 'create',
             rpId: data.rpId,
@@ -53,7 +53,7 @@
             throw new Error('User declined passkey creation');
         }
 
-        // Использовать PassHub API если доступен
+        // Use the PassHub API when available.
         if (typeof window.PassHubPasskeyAPI !== 'undefined') {
             const result = await window.PassHubPasskeyAPI.createPasskey(data, {
                 url: senderTab.url,
@@ -64,7 +64,7 @@
                 throw new Error('Failed to create passkey in PassHub');
             }
 
-            // Создать attestation для сайта
+            // Create attestation for the site.
             const attestation = await PasskeyGenerator.createCredentialForSite(
                 result.passkey.passkey,
                 data.challenge,
@@ -81,7 +81,7 @@
             };
         }
 
-        // Fallback: создать напрямую (если API недоступен)
+        // Fallback: create directly when the API is unavailable.
         if (typeof PasskeyGenerator === 'undefined') {
             throw new Error('PasskeyGenerator not loaded');
         }
@@ -90,15 +90,15 @@
             data.rpName,
             data.userName,
             data.rpId,
-            window.PassHubEncrypt // функция шифрования PassHub
+            window.PassHubEncrypt // PassHub encryption function.
         );
 
-        // Сохранить в PassHub через Integration API
+        // Save to PassHub through the Integration API.
         if (typeof PasskeyIntegration !== 'undefined') {
             await PasskeyIntegration.savePasskey(passkeyData, userChoice.safe);
         }
 
-        // Создать attestation для сайта
+        // Create attestation for the site.
         const attestation = await PasskeyGenerator.createCredentialForSite(
             passkeyData.passkey,
             data.challenge,
@@ -116,12 +116,12 @@
     }
 
     /**
-     * Обработка использования Passkey
+    * Handle passkey use.
      */
     async function handleGetPasskey(data, senderTab) {
         console.log('Getting passkey for:', data);
 
-        // Найти passkeys для rpId через API
+        // Find passkeys for the RP ID through the API.
         let passkeys = [];
         
         if (typeof window.PassHubPasskeyAPI !== 'undefined') {
@@ -134,7 +134,7 @@
             throw new Error('No passkeys found for ' + data.rpId);
         }
 
-        // Показать диалог выбора
+        // Display the selection dialog.
         const userChoice = await showPasskeyDialog({
             type: 'get',
             rpId: data.rpId,
@@ -152,7 +152,7 @@
 
         const selectedPasskey = userChoice.passkey;
 
-        // Создать assertion через API или напрямую
+        // Create the assertion through the API or directly.
         let assertion;
         
         if (typeof window.PassHubPasskeyAPI !== 'undefined') {
@@ -169,7 +169,7 @@
                 window.PassHubDecrypt
             );
 
-            // Обновить counter
+            // Update the counter.
             if (typeof PasskeyIntegration !== 'undefined') {
                 await PasskeyIntegration.incrementCounter(selectedPasskey._id);
             }
@@ -187,7 +187,7 @@
     }
 
     /**
-     * Показать диалог пользователю
+    * Display a dialog to the user.
      */
     function showPasskeyDialog(options) {
         return new Promise((resolve) => {
@@ -279,7 +279,7 @@
             if (options.type === 'create') {
                 const safeSelect = dialog.querySelector('#passkey-safe-select');
                 
-                // Получить список сейфов через API
+                // Get the safe list through the API.
                 if (typeof window.PassHubPasskeyAPI !== 'undefined') {
                     const safes = window.PassHubPasskeyAPI.getSafeList();
                     safeSelect.innerHTML = safes.map(s => 
