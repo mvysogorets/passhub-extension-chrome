@@ -241,6 +241,7 @@ svg circle.otp-dial {
 }
 
 .close-popup {
+  display: none;
   width: 20px;
   height: 20px;
   background-image: url('images/close.svg');
@@ -255,13 +256,14 @@ svg circle.otp-dial {
 .help {
   width: 20px;
   height: 20px;
-  margin-right: 20px;
+  /*  margin-right: 20px; */
   background-image: url('images/help.svg');
   background-size: 20px 20px;
 }
 
 #password-icon,
-#credit-card {
+#credit-card,
+#address {
   height: 24px;
   width: 24px;
   margin-right: 20px;
@@ -271,7 +273,8 @@ svg circle.otp-dial {
 }
 
 #password-icon:hover,
-#credit-card:hover {
+#credit-card:hover,
+#address:hover {
   opacity: 0.8;
 }
 

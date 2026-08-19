@@ -157,6 +157,7 @@ function fillCredentials(loginData = null) {
 
   let usernameInput = null;
   let passwordInput = null;
+  let otpInput = null;
 
   const inputs = findAllInputs()
 
@@ -170,42 +171,6 @@ function fillCredentials(loginData = null) {
     intervalID = null;
     return;
   }
-
-  /*  
-  let frameId = loginData.frameId; // debug
-  
-    if (frameId != 0) {
-      consoleLog('frameId');
-      consoleLog(frameId);
-      let p = document.querySelector("#password-input");
-      consoleLog('password element');
-      consoleLog(document.querySelector("#password-input"));
-      if (p) {
-        consoleLog('password element found');
-        passwordInput = p;
-      }
-  
-      let u = document.querySelector("#userId-input");
-      consoleLog('userId element');
-      consoleLog(document.querySelector("#userId-input"));
-      if (u) {
-        consoleLog('username element found');
-        usernameInput = u;
-        //      usernameInput.value = loginData.username;
-        //      u.dispatchEvent(new KeyboardEvent('keydown', { 'key': 'a' }));
-  
-  
-      }
-  
-      const ui = document.querySelector("#userId-input");
-      consoleLog('userId-input');
-      consoleLog(document.querySelector("#userId-input"));
-      if (ui) {
-        consoleLog('userId-input element found');
-      }
-  
-    }
-  */
 
   if (!(usernameInput && passwordInput)) {
     consoleLog('contentScript: looking for username & password inputs');
@@ -225,6 +190,7 @@ function fillCredentials(loginData = null) {
 
       if (("totp" in loginData) && isTotpCandidate(input)) {
         setInputValue(input, loginData.totp);
+        otpInput = input;
         return;
       }
 
@@ -256,6 +222,19 @@ function fillCredentials(loginData = null) {
 
     clearInterval(intervalID);
     intervalID = null;
+
+    if (!otpInput && ("totp" in loginData)) {
+      for (let input of inputs) {
+        if ((input != usernameInput) && (input != passwordInput)) {
+          if (isTotpCandidate(input)) {
+            setInputValue(input, loginData.totp);
+            otpInput = input;
+            break;
+          }
+        }
+      }
+    }
+
     return;
   }
   if (passwordInput) {
@@ -264,6 +243,18 @@ function fillCredentials(loginData = null) {
 
     clearInterval(intervalID);
     intervalID = null;
+
+    if (!otpInput && ("totp" in loginData)) {
+      for (let input of inputs) {
+        if ((input != passwordInput)) {
+          if (isTotpCandidate(input)) {
+            setInputValue(input, loginData.totp);
+            otpInput = input;
+            break;
+          }
+        }
+      }
+    }
     return;
   }
 
@@ -370,6 +361,36 @@ function altCSC() {
   return element;
 }
 
+function addressFieldsPresent() {
+  const autocompleteTokens = [
+    'address-line1', 'address-line2', 'address-line3',
+    'street-address', 'postal-code', 'country', 'country-name',
+    'address-level1', 'address-level2'
+  ];
+  const pattern = new RegExp(`^(?:(?:shipping|billing)\\s+)?(?:${autocompleteTokens.join('|')})$`, 'i');
+  const elements = document.querySelectorAll('[autocomplete]');
+
+  consoleLog("address elements found");
+  consoleLog(elements);
+  for (const element of elements) {
+    if (pattern.test(element.getAttribute('autocomplete').trim())) {
+      return element;
+    }
+  }
+  return null;
+}
+
+function cardFieldsPresent() {
+
+  let ccNumber = document.querySelector('[autocomplete="cc-number"]');
+  if (!ccNumber) {
+    ccNumber = altCardnum();
+  }
+  const ccName = document.querySelector('[autocomplete="cc-name"]');
+  const ccCSC = document.querySelector('[autocomplete="cc-csc"]');
+  return (ccNumber != null) || (ccName != null) || (ccCSC != null);
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   consoleLog(message);
   consoleLog(sender.tab ?
@@ -384,14 +405,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     initFillCredentials();
 
     fillCredentials(message);
-
-    /*    
-        intervalID = setInterval(() => {
-          fillCredentials(message);
-          consoleLog(`fillCounter ${fillCounter}`)
-        },
-          100);
-    */
     sendResponse({ farewell: "Ok" });
     return;
   }
@@ -402,25 +415,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.id === "address") {
+    fillAddressData(message.address);
+    sendResponse({ farewell: "Ok" });
+    return;
+  }
+
   if (message.id === "payment status") {
-    let ccNumber = document.querySelector('[autocomplete="cc-number"]');
 
-    if (!ccNumber) {
-      ccNumber = altCardnum();
+    const cardDetected = cardFieldsPresent();
+    const addressDetected = addressFieldsPresent();
+
+    let paymentStatus = "not a payment page";
+
+    if (cardDetected && addressDetected) {
+      paymentStatus = "payment and address page";
+    } else if (cardDetected) {
+      paymentStatus = "payment page";
+    } else if (addressDetected) {
+      paymentStatus = "address page";
     }
-    /*
-        if (ccNumber) {
-          const paymentStatus = { payment: "payment page" }
-          consoleLog('response 2');
-          consoleLog(paymentStatus);
-          sendResponse(paymentStatus);
-        }
-    */
 
-    const ccName = document.querySelector('[autocomplete="cc-name"]');
-    const ccCSC = document.querySelector('[autocomplete="cc-csc"]');
-
-    const paymentStatus = { payment: ((ccNumber != null) || (ccName != null) || (ccCSC != null)) ? "payment page" : "not a payment page" }
     consoleLog('response 1');
     consoleLog(paymentStatus);
     sendResponse(paymentStatus);
@@ -429,6 +444,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   sendResponse({ farewell: "contentScript goodbye" });
 }
 );
+
+// address elements only 
+function findByAutocompleteToken(token) {
+  const pattern = new RegExp(`^(?:(?:shipping|billing)\\s+)?${token}$`, 'i');
+  return Array.from(document.querySelectorAll('[autocomplete]'))
+    .find(el => pattern.test(el.getAttribute('autocomplete').trim()));
+}
+
+function fillAddressData(address) {
+  let country = findByAutocompleteToken('country');
+  if (country) {
+    setInputValue(country, address[8]);
+  }
+  let state = findByAutocompleteToken('address-level1');
+
+  if (!state) {
+    state = findByAutocompleteToken('state');
+  }
+
+  if (state) {
+    setInputValue(state, address[6]);
+  }
+
+  let zip = findByAutocompleteToken('postal-code');
+  if (zip) {
+    setInputValue(zip, address[7]);
+  }
+  let city = findByAutocompleteToken('address-level2');
+  if (city) {
+    setInputValue(city, address[5]);
+  }
+
+
+  let streetAddress = findByAutocompleteToken('street-address');
+  if (streetAddress) {
+    setInputValue(streetAddress, `${address[3]} ${address[4]}`);
+  } else {
+    let addressLine1 = findByAutocompleteToken('address-line1');
+    if (addressLine1) {
+      setInputValue(addressLine1, address[3]);
+    }
+    let addressLine2 = findByAutocompleteToken('address-line2');
+    if (addressLine2) {
+      setInputValue(addressLine2, address[4]);
+    }
+  }
+}
 
 function fillCardData(card) {
   let cardnum = document.querySelector('[autocomplete="cc-number"]');
@@ -492,11 +554,11 @@ function fillCardData(card) {
       }
     }
     if (year) {
-      let twoDigitYear = card[6];
-      if (card[6].length > 2) {
-        twoDigitYear = card[6]
+      let yearValue = card[6];
+      if (digits === 2 && card[6].length > 2) {
+        yearValue = card[6].slice(-2); // Get last two characters
       }
-      setInputValue(year, card[6]);
+      setInputValue(year, yearValue);
     }
   }
 
@@ -507,5 +569,20 @@ function fillCardData(card) {
   if (csc) {
     setInputValue(csc, card[7]);
   }
-}
 
+  if (card.length > 8) {
+    let zip = findByAutocompleteToken('postal-code');
+    /*
+        if (!zip) {
+          zip = altZip();
+        }
+    */
+    if (zip) {
+      setInputValue(zip, card[8]);
+    }
+  }
+
+}
+/*
+const pattern = new RegExp(`^(?:(?:shipping|billing)\\s+)?(?:${autocompleteTokens.join('|')})$`, 'i');
+*/
