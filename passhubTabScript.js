@@ -23,27 +23,27 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     * Runs in the ISOLATED context and has access to the chrome.runtime API.
      */
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        consoleLog('📨 Received from Extension:', request);
+        consoleLog('Received from Extension:', request);
 
         // Ping-pong connectivity check.
         if (request.id === 'ping') {
-            consoleLog('🏓 Responding to ping');
+            consoleLog('Responding to ping');
             sendResponse({ status: 'ok', context: 'passhubTabScript' });
             return true;
         }
 
         // Passkey request from the extension, forwarded by contentScript from passkeyInterceptor.
         if (request.id === 'passkey-create-request' || request.id === 'passkey-get-request') {
-            consoleLog('🔑 Passkey request:', request.id);
+            consoleLog('Passkey request:', request.id);
             
             // Process asynchronously by sending the request to the PassHub API through the bridge.
             handlePasskeyRequest(request)
                 .then(result => {
-                    consoleLog('✅ Sending result back to Extension:', result);
+                    consoleLog('Sending result back to Extension:', result);
                     sendResponse(result);
                 })
                 .catch(error => {
-                    consoleLog('❌ Error:', error);
+                    consoleLog('Error:', error);
                     sendResponse({ error: error.message });
                 });
             
@@ -66,7 +66,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     * @returns {Promise<Object>} WebAuthn credential or error
      */
     async function handlePasskeyRequest(request) {
-        consoleLog('🔄 Processing passkey request');
+        consoleLog('Processing passkey request');
 
         // Verify that PassHubPasskeyAPI is available on the page.
         if (!document.querySelector('script[src*="passhub-passkey-api.js"]')) {
@@ -75,14 +75,14 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
         return new Promise((resolve, reject) => {
             const requestId = Date.now() + Math.random();
-            consoleLog(`📤 Sending to PassHub API with requestId: ${requestId}`);
+            consoleLog(`Sending to PassHub API with requestId: ${requestId}`);
 
             const responseHandler = (event) => {
                 if (event.source !== window) return;
                 if (event.data?.type !== 'passhub-passkey-response') return;
                 if (event.data.requestId !== requestId) return;
 
-                consoleLog(`📥 Response received for requestId: ${requestId}`, event.data.result);
+                consoleLog(`Response received for requestId: ${requestId}`, event.data.result);
                 window.removeEventListener('message', responseHandler);
 
                 const result = event.data.result;
@@ -109,6 +109,6 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
         });
     }
 
-    consoleLog('✅ passhubTabScript ready');
+    consoleLog('passhubTabScript ready');
 
 })();

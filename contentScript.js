@@ -1,5 +1,5 @@
 // GPL: https://github.com/passff/passff
-console.log('✓ PassHub: contentScript.js loaded on', window.location.href);
+console.log('PassHub: contentScript.js loaded on', window.location.href);
 // const consoleLog = console.log;
 // const consoleLog = () => { };
   const consoleLog = console.log;
@@ -10,11 +10,11 @@ if (installPasskeyBridge) (function injectPasskeyInterceptor() {
   const script = document.createElement('script');
   script.src = chrome.runtime.getURL('passkeyInterceptor.js');
   script.onload = function() {
-    console.log('✓ PassHub: Passkey interceptor injected successfully');
+    console.log('PassHub: Passkey interceptor injected successfully');
     this.remove();
   };
   script.onerror = function() {
-    console.error('✗ PassHub: Failed to inject passkeyInterceptor.js');
+    console.error('PassHub: Failed to inject passkeyInterceptor.js');
     this.remove();
   };
   (document.head || document.documentElement).appendChild(script);

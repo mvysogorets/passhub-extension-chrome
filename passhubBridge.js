@@ -6,11 +6,11 @@
  */
 (function() {
     'use strict';
-    console.log('🔗 PassHub bridge loaded in MAIN context');
+    console.log('PassHub bridge loaded in MAIN context');
 
     // Listen for commands from passhubTabScript (ISOLATED context) through CustomEvent.
     document.addEventListener('passhub-bridge-request', async (event) => {
-        console.log('📥 Bridge received request from ISOLATED:', event.detail);
+        console.log('Bridge received request from ISOLATED:', event.detail);
 
         const { id, data, requestId } = event.detail;
 
@@ -19,7 +19,7 @@
         // Listen for the response from passhub-passkey-api.js.
         const responseHandler = (e) => {
             if (e.data?.type === 'passhub-passkey-response' && e.data.requestId === requestId) {
-                console.log('📥 Bridge received response from PassHubPasskeyAPI:', e.data.result);
+                console.log('Bridge received response from PassHubPasskeyAPI:', e.data.result);
                 window.removeEventListener('message', responseHandler);
 
                 // Send the response back to passhubTabScript through CustomEvent.
@@ -30,7 +30,7 @@
                     }
                 });
                 document.dispatchEvent(responseEvent);
-                console.log('📤 Bridge sent response to ISOLATED');
+                console.log('Bridge sent response to ISOLATED');
             }
         };
 
@@ -49,5 +49,5 @@
         }, 30000);
     });
 
-    console.log('✅ PassHub bridge ready');
+    console.log('PassHub bridge ready');
 })();
