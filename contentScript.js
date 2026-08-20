@@ -1,7 +1,48 @@
 // GPL: https://github.com/passff/passff
-
+console.log('PassHub: contentScript.js loaded on', window.location.href);
 // const consoleLog = console.log;
-const consoleLog = () => { };
+// const consoleLog = () => { };
+  const consoleLog = console.log;
+const installPasskeyBridge = !globalThis.__passHubPasskeyBridgeInstalled;
+globalThis.__passHubPasskeyBridgeInstalled = true;
+// Inject Passkey interceptor into page context (must run before page scripts)
+if (installPasskeyBridge) (function injectPasskeyInterceptor() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('passkeyInterceptor.js');
+  script.onload = function() {
+    console.log('PassHub: Passkey interceptor injected successfully');
+    this.remove();
+  };
+  script.onerror = function() {
+    console.error('PassHub: Failed to inject passkeyInterceptor.js');
+    this.remove();
+  };
+  (document.head || document.documentElement).appendChild(script);
+})();
+
+// Relay: postMessage (page) ↔ chrome.runtime.sendMessage (background)
+if (installPasskeyBridge) window.addEventListener('message', async (event) => {
+  if (event.source !== window) return;
+  if (!event.data || event.data.type !== 'passhub-request') return;
+
+  const { requestId, id, data } = event.data;
+  consoleLog('PassHub relay: forwarding to background', id);
+
+  try {
+    const response = await chrome.runtime.sendMessage({ id, data });
+    window.postMessage({ type: 'passhub-response', requestId, response }, '*');
+  } catch (error) {
+    consoleLog('PassHub relay error:', error);
+    const message = error.message === 'Extension context invalidated.'
+      ? 'PassHub extension was reloaded. Reload this page and try again.'
+      : error.message;
+    window.postMessage({
+      type: 'passhub-response',
+      requestId,
+      response: { error: message }
+    }, '*');
+  }
+});
 
 function fireEvent(el, name) {
   el.dispatchEvent(
@@ -355,6 +396,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   consoleLog(sender.tab ?
     "from a content script:" + sender.tab.url :
     "from the extension");
+
+  if (message.id === "passkey-create-request" || message.id === "passkey-get-request") {
+    return false;
+  }
+
   if (message.id === "loginRequest") {
     initFillCredentials();
 
