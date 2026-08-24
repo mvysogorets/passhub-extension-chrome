@@ -1,7 +1,8 @@
 'use strict';
 
 // const consoleLog = console.log;
-const consoleLog = () => { };
+// const consoleLog = () => { };
+const consoleLog = console.log;
 
 let farewellCount = 0;
 
@@ -43,7 +44,8 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['contentScript.js']
+          files: ['contentScript.js'],
+          world: 'MAIN'
         })
           .then((injectionResult) => {
             consoleLog('inJectionResult');
@@ -70,11 +72,14 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     chrome.storage.session.set({ passhub: { peer: sender, version: ("version" in request) ? request.version : 1 } });
     sendResponse({ id: "63 Ok" });
 
+    // Inject both scripts
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
+      // files: ['passhubTabScript.js', 'passhubPasskeyHandler.js']
       files: ['passhubTabScript.js']
     })
       .then((injectionResult) => {
+        // consoleLog('passhubTabScript + passhubPasskeyHandler InjectionResult');
         consoleLog('passhubTabScript InjectionResult');
         consoleLog(injectionResult);
         //        sendResponse({ id: "Ok" });
@@ -111,6 +116,12 @@ function notConnected() {
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
   consoleLog("bg got (popup) message");
   consoleLog(popupMessage);
+
+  // Handle passkey requests from the content script.
+  if (popupMessage.id === 'passkey-create-request' || popupMessage.id === 'passkey-get-request') {
+    handlePasskeyRequest(popupMessage, sender, sendResponse);
+    return true; // Keep the channel open for an asynchronous response.
+  }
 
   sendResponse({ status: 'wait' });
 
@@ -169,3 +180,69 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   });
 })
+
+/**
+ * Handle passkey requests.
+ */
+async function handlePasskeyRequest(message, sender, sendResponse) {
+  consoleLog('Handling passkey request:', message);
+
+  try {
+    // Get the PassHub tab.
+    const passhubData = await chrome.storage.session.get("passhub");
+
+    if (!passhubData.passhub) {
+      sendResponse({
+        error: 'PassHub not connected'
+      });
+      return;
+    }
+
+    // Forward the request to PassHub.
+    const passkeyMessage = {
+      id: message.id,
+      data: message.data,
+      senderTab: {
+        id: sender.tab.id,
+        url: sender.tab.url,
+        title: sender.tab.title
+      }
+    };
+
+    try {
+      const passhubTabId = passhubData.passhub.peer.tab.id;
+      await chrome.tabs.update(passhubTabId, { active: true });
+      if (passhubData.passhub.peer.tab.windowId !== undefined) {
+        await chrome.windows.update(passhubData.passhub.peer.tab.windowId, { focused: true });
+      }
+
+      const response = await chrome.tabs.sendMessage(
+        passhubTabId,
+        passkeyMessage
+      );
+      consoleLog('PassHub response:', response);
+
+      try {
+        await chrome.tabs.update(sender.tab.id, { active: true });
+        if (sender.tab.windowId !== undefined) {
+          await chrome.windows.update(sender.tab.windowId, { focused: true });
+        }
+      } catch (focusError) {
+        consoleLog('Could not return to relying party tab:', focusError);
+      }
+
+      sendResponse(response);
+    } catch (err) {
+      consoleLog('Error sending to PassHub:', err);
+      sendResponse({
+        error: err.message
+      });
+    }
+
+  } catch (error) {
+    consoleLog('Error in handlePasskeyRequest:', error);
+    sendResponse({
+      error: error.message
+    });
+  }
+}
