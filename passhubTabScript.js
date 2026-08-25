@@ -32,6 +32,14 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
             return true;
         }
 
+        // Password/card/address requests use the legacy PassHub wake-up flow.
+        if (request.id === 'request to send') {
+            consoleLog('Forwarding request to the PassHub page');
+            sendResponse({ farewell: 'passhubTabScript goodbye' });
+            window.postMessage(request, request.origin || window.location.origin);
+            return;
+        }
+
         // Passkey request from the extension, forwarded by contentScript from passkeyInterceptor.
         if (request.id === 'passkey-create-request' || request.id === 'passkey-get-request') {
             consoleLog('Passkey request:', request.id);

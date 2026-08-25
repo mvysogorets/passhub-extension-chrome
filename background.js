@@ -69,8 +69,15 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   } else if (request.id == 'remember me') {
     // sent by passhub tab just after signin, the passhub tab is saved for future communications
 
-    chrome.storage.session.set({ passhub: { peer: sender, version: ("version" in request) ? request.version : 1 } });
-    sendResponse({ id: "63 Ok" });
+    const version = request.version ?? 2;
+    chrome.storage.session.set({
+      passhub: {
+        peer: sender,
+        origin: sender.origin,
+        version,
+      }
+    });
+    sendResponse({ id: "Ok" });
 
     // Inject both scripts
     chrome.scripting.executeScript({
