@@ -52,7 +52,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
                 })
                 .catch(error => {
                     consoleLog('Error:', error);
-                    sendResponse({ error: error.message });
+                    sendResponse({ error: error.message, errorName: error.name });
                 });
             
             return true; // Keep channel open for async response
@@ -95,7 +95,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
                 const result = event.data.result;
                 if (result && result.error) {
-                    reject(new Error(result.error));
+                    reject(responseToError(result));
                 } else {
                     resolve(result);
                 }
@@ -115,6 +115,16 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
                 reject(new Error('PassHub API response timeout'));
             }, 60000);
         });
+    }
+
+    function responseToError(result) {
+        if (result.errorName === 'NotSupportedError') {
+            return new DOMException(result.error, 'NotSupportedError');
+        }
+        if (result.errorName === 'TypeError') {
+            return new TypeError(result.error);
+        }
+        return new Error(result.error);
     }
 
     consoleLog('passhubTabScript ready');

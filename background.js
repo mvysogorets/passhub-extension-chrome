@@ -256,7 +256,8 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     } catch (err) {
       consoleLog('Error sending to PassHub:', err);
       sendResponse({
-        error: err.message
+        error: err.message,
+        errorName: err.name
       });
     }
 

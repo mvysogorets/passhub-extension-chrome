@@ -109,6 +109,12 @@
             userDisplayName: publicKey.user?.displayName || '',
             userHandle: publicKey.user?.id ? arrayBufferToBase64(publicKey.user.id) : null,
             challenge: arrayBufferToBase64(publicKey.challenge),
+            pubKeyCredParams: publicKey.pubKeyCredParams == null
+                ? null
+                : Array.from(publicKey.pubKeyCredParams, parameter => ({
+                    type: parameter.type,
+                    alg: parameter.alg
+                })),
             origin: window.location.origin
         };
 
@@ -129,9 +135,11 @@
             }
         } catch (error) {
             console.error('PassHub passkey creation failed:', error);
-            if (error instanceof DOMException && error.name === 'SecurityError') {
+            if (error instanceof DOMException &&
+                (error.name === 'SecurityError' || error.name === 'NotSupportedError')) {
                 throw error;
             }
+            if (error instanceof TypeError) throw error;
             throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
         }
     };
@@ -268,8 +276,11 @@
     }
 
     function responseToError(response) {
-        if (response.errorName === 'SecurityError') {
-            return new DOMException(response.error, 'SecurityError');
+        if (response.errorName === 'SecurityError' || response.errorName === 'NotSupportedError') {
+            return new DOMException(response.error, response.errorName);
+        }
+        if (response.errorName === 'TypeError') {
+            return new TypeError(response.error);
         }
         return new Error(response.error);
     }
