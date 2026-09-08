@@ -65,7 +65,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     * Handle a passkey request by sending it to the PassHub API through the bridge.
      * 
      * FLOW:
-    * 1. Verify that PassHubPasskeyAPI is loaded on the page.
+    * 1. Verify that the PassHub React passkey bridge is ready.
     * 2. Create a request ID for matching the response.
     * 3. Send the request to PassHubPasskeyAPI through window.postMessage.
     * 4. Receive the correlated response and return it to the extension.
@@ -76,8 +76,8 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     async function handlePasskeyRequest(request) {
         consoleLog('Processing passkey request');
 
-        // Verify that PassHubPasskeyAPI is available on the page.
-        if (!document.querySelector('script[src*="passhub-passkey-api.js"]')) {
+        // The bridge is bundled by Vite, so there is no standalone script tag.
+        if (document.documentElement.dataset.passhubPasskeyApi !== 'ready') {
             throw new Error('PassHubPasskeyAPI not loaded on this page');
         }
 

@@ -1,5 +1,7 @@
 'use strict';
 
+importScripts('vendor/tldts/index.umd.min.js', 'rpIdValidator.js');
+
 // const consoleLog = console.log;
 // const consoleLog = () => { };
 const consoleLog = console.log;
@@ -195,6 +197,18 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
   consoleLog('Handling passkey request:', message);
 
   try {
+    // MAIN-world data is controlled by the relying-party page. Validate it
+    // against the actual sender tab before PassHub can search or use a key.
+    const validatedRp = PassHubRpIdValidator.validate(
+      message.data?.rpId,
+      sender.tab?.url
+    );
+    const trustedData = {
+      ...message.data,
+      rpId: validatedRp.rpId,
+      origin: validatedRp.origin
+    };
+
     // Get the PassHub tab.
     const passhubData = await chrome.storage.session.get("passhub");
 
@@ -208,7 +222,7 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     // Forward the request to PassHub.
     const passkeyMessage = {
       id: message.id,
-      data: message.data,
+      data: trustedData,
       senderTab: {
         id: sender.tab.id,
         url: sender.tab.url,
@@ -249,7 +263,8 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
   } catch (error) {
     consoleLog('Error in handlePasskeyRequest:', error);
     sendResponse({
-      error: error.message
+      error: error.message,
+      errorName: error.name
     });
   }
 }
