@@ -32,6 +32,14 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
             return true;
         }
 
+        // Password/card/address requests use the legacy PassHub wake-up flow.
+        if (request.id === 'request to send') {
+            consoleLog('Forwarding request to the PassHub page');
+            sendResponse({ farewell: 'passhubTabScript goodbye' });
+            window.postMessage(request, request.origin || window.location.origin);
+            return;
+        }
+
         // Passkey request from the extension, forwarded by contentScript from passkeyInterceptor.
         if (request.id === 'passkey-create-request' || request.id === 'passkey-get-request') {
             consoleLog('Passkey request:', request.id);
@@ -44,7 +52,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
                 })
                 .catch(error => {
                     consoleLog('Error:', error);
-                    sendResponse({ error: error.message });
+                    sendResponse({ error: error.message, errorName: error.name });
                 });
             
             return true; // Keep channel open for async response
@@ -57,7 +65,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     * Handle a passkey request by sending it to the PassHub API through the bridge.
      * 
      * FLOW:
-    * 1. Verify that PassHubPasskeyAPI is loaded on the page.
+    * 1. Verify that the PassHub React passkey bridge is ready.
     * 2. Create a request ID for matching the response.
     * 3. Send the request to PassHubPasskeyAPI through window.postMessage.
     * 4. Receive the correlated response and return it to the extension.
@@ -68,8 +76,8 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     async function handlePasskeyRequest(request) {
         consoleLog('Processing passkey request');
 
-        // Verify that PassHubPasskeyAPI is available on the page.
-        if (!document.querySelector('script[src*="passhub-passkey-api.js"]')) {
+        // The bridge is bundled by Vite, so there is no standalone script tag.
+        if (document.documentElement.dataset.passhubPasskeyApi !== 'ready') {
             throw new Error('PassHubPasskeyAPI not loaded on this page');
         }
 
@@ -87,7 +95,7 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
                 const result = event.data.result;
                 if (result && result.error) {
-                    reject(new Error(result.error));
+                    reject(responseToError(result));
                 } else {
                     resolve(result);
                 }
@@ -107,6 +115,16 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
                 reject(new Error('PassHub API response timeout'));
             }, 60000);
         });
+    }
+
+    function responseToError(result) {
+        if (result.errorName === 'NotSupportedError' || result.errorName === 'InvalidStateError') {
+            return new DOMException(result.error, result.errorName);
+        }
+        if (result.errorName === 'TypeError') {
+            return new TypeError(result.error);
+        }
+        return new Error(result.error);
     }
 
     consoleLog('passhubTabScript ready');

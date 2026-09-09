@@ -397,7 +397,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "from a content script:" + sender.tab.url :
     "from the extension");
 
-  if (message.id === "passkey-create-request" || message.id === "passkey-get-request") {
+  if (
+    message.id === "request to send" ||
+    message.id === "passkey-create-request" ||
+    message.id === "passkey-get-request"
+  ) {
     return false;
   }
 

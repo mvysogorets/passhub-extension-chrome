@@ -109,6 +109,17 @@
             userDisplayName: publicKey.user?.displayName || '',
             userHandle: publicKey.user?.id ? arrayBufferToBase64(publicKey.user.id) : null,
             challenge: arrayBufferToBase64(publicKey.challenge),
+            pubKeyCredParams: publicKey.pubKeyCredParams == null
+                ? null
+                : Array.from(publicKey.pubKeyCredParams, parameter => ({
+                    type: parameter.type,
+                    alg: parameter.alg
+                })),
+            excludeCredentials: Array.from(publicKey.excludeCredentials || [], descriptor => ({
+                type: descriptor.type,
+                id: arrayBufferToBase64(descriptor.id),
+                transports: Array.from(descriptor.transports || [])
+            })),
             origin: window.location.origin
         };
 
@@ -123,12 +134,19 @@
             } else if (response && response.useSystem) {
                 return originalCreate(options);
             } else if (response && response.error) {
-                throw new Error(response.error);
+                throw responseToError(response);
             } else {
                 throw new DOMException('PassHub: passkey creation failed', 'NotAllowedError');
             }
         } catch (error) {
             console.error('PassHub passkey creation failed:', error);
+            if (error instanceof DOMException &&
+                (error.name === 'SecurityError' ||
+                    error.name === 'NotSupportedError' ||
+                    error.name === 'InvalidStateError')) {
+                throw error;
+            }
+            if (error instanceof TypeError) throw error;
             throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
         }
     };
@@ -193,12 +211,15 @@
             } else if (response && response.useSystem) {
                 return originalGet(options);
             } else if (response && response.error) {
-                throw new Error(response.error);
+                throw responseToError(response);
             } else {
                 throw new DOMException('PassHub: passkey authentication failed', 'NotAllowedError');
             }
         } catch (error) {
             console.error('PassHub passkey authentication failed:', error);
+            if (error instanceof DOMException && error.name === 'SecurityError') {
+                throw error;
+            }
             throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
         }
     };
@@ -259,6 +280,18 @@
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
             .replace(/=+$/, '');
+    }
+
+    function responseToError(response) {
+        if (response.errorName === 'SecurityError' ||
+            response.errorName === 'NotSupportedError' ||
+            response.errorName === 'InvalidStateError') {
+            return new DOMException(response.error, response.errorName);
+        }
+        if (response.errorName === 'TypeError') {
+            return new TypeError(response.error);
+        }
+        return new Error(response.error);
     }
 
     function reconstructCredential(data, type, request = {}) {

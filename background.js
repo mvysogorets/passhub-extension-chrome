@@ -1,5 +1,7 @@
 'use strict';
 
+importScripts('vendor/tldts/index.umd.min.js', 'rpIdValidator.js');
+
 // const consoleLog = console.log;
 // const consoleLog = () => { };
 const consoleLog = console.log;
@@ -69,8 +71,15 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   } else if (request.id == 'remember me') {
     // sent by passhub tab just after signin, the passhub tab is saved for future communications
 
-    chrome.storage.session.set({ passhub: { peer: sender, version: ("version" in request) ? request.version : 1 } });
-    sendResponse({ id: "63 Ok" });
+    const version = request.version ?? 2;
+    chrome.storage.session.set({
+      passhub: {
+        peer: sender,
+        origin: sender.origin,
+        version,
+      }
+    });
+    sendResponse({ id: "Ok" });
 
     // Inject both scripts
     chrome.scripting.executeScript({
@@ -158,7 +167,6 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 function injectionOnInstall() {
   const event = new Event("passhubExtInstalled");
   document.dispatchEvent(event);
-  consoleLog("extension installed");
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -188,6 +196,18 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
   consoleLog('Handling passkey request:', message);
 
   try {
+    // MAIN-world data is controlled by the relying-party page. Validate it
+    // against the actual sender tab before PassHub can search or use a key.
+    const validatedRp = PassHubRpIdValidator.validate(
+      message.data?.rpId,
+      sender.tab?.url
+    );
+    const trustedData = {
+      ...message.data,
+      rpId: validatedRp.rpId,
+      origin: validatedRp.origin
+    };
+
     // Get the PassHub tab.
     const passhubData = await chrome.storage.session.get("passhub");
 
@@ -201,7 +221,7 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     // Forward the request to PassHub.
     const passkeyMessage = {
       id: message.id,
-      data: message.data,
+      data: trustedData,
       senderTab: {
         id: sender.tab.id,
         url: sender.tab.url,
@@ -235,14 +255,16 @@ async function handlePasskeyRequest(message, sender, sendResponse) {
     } catch (err) {
       consoleLog('Error sending to PassHub:', err);
       sendResponse({
-        error: err.message
+        error: err.message,
+        errorName: err.name
       });
     }
 
   } catch (error) {
     consoleLog('Error in handlePasskeyRequest:', error);
     sendResponse({
-      error: error.message
+      error: error.message,
+      errorName: error.name
     });
   }
 }
