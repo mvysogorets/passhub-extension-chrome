@@ -115,6 +115,11 @@
                     type: parameter.type,
                     alg: parameter.alg
                 })),
+            excludeCredentials: Array.from(publicKey.excludeCredentials || [], descriptor => ({
+                type: descriptor.type,
+                id: arrayBufferToBase64(descriptor.id),
+                transports: Array.from(descriptor.transports || [])
+            })),
             origin: window.location.origin
         };
 
@@ -136,7 +141,9 @@
         } catch (error) {
             console.error('PassHub passkey creation failed:', error);
             if (error instanceof DOMException &&
-                (error.name === 'SecurityError' || error.name === 'NotSupportedError')) {
+                (error.name === 'SecurityError' ||
+                    error.name === 'NotSupportedError' ||
+                    error.name === 'InvalidStateError')) {
                 throw error;
             }
             if (error instanceof TypeError) throw error;
@@ -276,7 +283,9 @@
     }
 
     function responseToError(response) {
-        if (response.errorName === 'SecurityError' || response.errorName === 'NotSupportedError') {
+        if (response.errorName === 'SecurityError' ||
+            response.errorName === 'NotSupportedError' ||
+            response.errorName === 'InvalidStateError') {
             return new DOMException(response.error, response.errorName);
         }
         if (response.errorName === 'TypeError') {

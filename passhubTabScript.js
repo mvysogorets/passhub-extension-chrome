@@ -118,8 +118,8 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
     }
 
     function responseToError(result) {
-        if (result.errorName === 'NotSupportedError') {
-            return new DOMException(result.error, 'NotSupportedError');
+        if (result.errorName === 'NotSupportedError' || result.errorName === 'InvalidStateError') {
+            return new DOMException(result.error, result.errorName);
         }
         if (result.errorName === 'TypeError') {
             return new TypeError(result.error);
