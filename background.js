@@ -1,7 +1,7 @@
 'use strict';
 
-// const consoleLog = console.log;
-const consoleLog = () => { };
+const consoleLog = console.log;
+// const consoleLog = () => { };
 
 let farewellCount = 0;
 
@@ -13,6 +13,50 @@ function logtime() {
 }
 
 consoleLog(logtime() + 'passhub extension background start');
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function waitForTabComplete(tabId) {
+  return new Promise(resolve => {
+    function listener(updatedTabId, changeInfo) {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId, tab => {
+      if (chrome.runtime.lastError) {
+        return;
+      }
+      if (tab && tab.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    });
+  });
+}
+
+/* does not help
+async function sendMessageWithRetry(tabId, message, retries = 1, delayMs = 100) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      consoleLog("message sent");
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (err) {
+      consoleLog("message send error");
+
+      if (attempt === retries) {
+        throw err;
+      }
+      await sleep(delayMs);
+    }
+  }
+}
+
+*/
 
 //messages from externally connectables (= passhub tab) 
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
@@ -37,9 +81,12 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     // sent by passhub tab when user clicks on the URL link of password record, forward to the target URL
     sendResponse({ farewell: `goodbye ${request.id} ${farewellCount}` });
     chrome.tabs.create({ url: request.url })
-      .then(tab => {
+      .then(async tab => {
         consoleLog('tab created');
         consoleLog(tab);
+
+        await waitForTabComplete(tab.id);
+        await sleep(500);
 
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
@@ -48,6 +95,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
           .then((injectionResult) => {
             consoleLog('inJectionResult');
             consoleLog(injectionResult);
+            // sendMessageWithRetry(tab.id, request) not now
             chrome.tabs.sendMessage(tab.id, request)
               .then(response => {
                 consoleLog('bg got response from content script');
