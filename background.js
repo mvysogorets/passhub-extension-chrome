@@ -17,6 +17,31 @@ function logtime() {
 
 consoleLog(logtime() + 'passhub extension background start');
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function waitForTabComplete(tabId) {
+  return new Promise(resolve => {
+    function listener(updatedTabId, changeInfo) {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId, tab => {
+      if (chrome.runtime.lastError) {
+        return;
+      }
+      if (tab && tab.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    });
+  });
+}
+
 //messages from externally connectables (= passhub tab) 
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   consoleLog(`external message from passhub window/ request from ${sender.url}`);
@@ -40,9 +65,12 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     // sent by passhub tab when user clicks on the URL link of password record, forward to the target URL
     sendResponse({ farewell: `goodbye ${request.id} ${farewellCount}` });
     chrome.tabs.create({ url: request.url })
-      .then(tab => {
+      .then(async tab => {
         consoleLog('tab created');
         consoleLog(tab);
+
+        await waitForTabComplete(tab.id);
+        await sleep(500);
 
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
