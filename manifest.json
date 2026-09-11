@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PassHub.net",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Securely autofill login forms and payment details with PassHub password manager, built using zero-trust architecture. Supports Passkey (WebAuthn).",
   "author": "WWPass",
   "homepage_url": "https://wwpass.com",

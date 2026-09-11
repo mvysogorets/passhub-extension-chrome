@@ -333,6 +333,7 @@ body.passkey-view header img {
 
 body.passkey-view header [title="Show passwords"],
 body.passkey-view header [title="Show credit cards"],
+body.passkey-view header [title="Show addresses"],
 body.passkey-view header .help {
   display: none;
 }
