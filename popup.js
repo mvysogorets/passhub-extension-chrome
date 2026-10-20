@@ -190,7 +190,7 @@ function installScript(tab, frame) {
       chrome.scripting.executeScript(
         {
           target: { tabId: tab.id, frameIds: [frame.frameId] },
-          files: ['contentScript.js'],
+          files: ['autofill.js'],
         })
         .then(injectionResult => {
 
@@ -789,6 +789,47 @@ function showPage(pageSelector) {
   thePage.style.display = 'block';
 }
 
+// Populates and shows the passkey chooser page using the context the background
+// script stashed in chrome.storage.session (see passkey-chooser-context handling
+// in background.js), then shows it instead of the regular lookup flow.
+function showPasskeyChooserPage(context) {
+  // document.body.classList.add('passkey-view');
+
+  const mode = context.mode;
+  const passkey = context.passkey || {};
+  let hostname = passkey.rpId || '';
+  if (!hostname && context.url) {
+    try {
+      hostname = new URL(context.url).hostname;
+    } catch (err) {
+      consoleLog(err);
+    }
+  }
+  const siteName = passkey.rpName || hostname || 'this site';
+  const userName = passkey.user?.displayName || passkey.user?.name || '';
+
+  document.querySelector('#passkey-heading').textContent = mode === 'get' ? 'Sign in with passkey' : 'Create passkey';
+  document.querySelector('#passkey-action').textContent = mode === 'get' ? 'Use a passkey for' : 'Save a passkey for';
+  document.querySelector('#passkey-site').textContent = siteName;
+  document.querySelector('#passkey-user').textContent = userName;
+  document.querySelector('#passkey-passhub').textContent = mode === 'get' ? 'Use PassHub' : 'Save in PassHub';
+
+  // The port's disconnect tells background the popup closed; the message says how.
+  const port = chrome.runtime.connect({ name: 'passkey-chooser' });
+  port.postMessage({ requestId: context.requestId });
+
+  const choose = (choice) => {
+    port.postMessage({ requestId: context.requestId, choice });
+    windowClose();
+  };
+
+  document.querySelector('#passkey-passhub').addEventListener('click', () => choose('passhub'));
+  document.querySelector('#passkey-system').addEventListener('click', () => choose('system'));
+  document.querySelector('#passkey-cancel').addEventListener('click', () => choose('cancel'));
+
+  showPage(".passkey-page");
+}
+
 function activatePassHubDocTab() {
   const manifest = chrome.runtime.getManifest();
   const urlList = manifest.externally_connectable.matches;
@@ -854,53 +895,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-chrome.tabs.query({ active: true, currentWindow: true })
-  .then(tabs => {
-    activeTab = tabs[0];
-
-    let mainURL = new URL(activeTab.url);
-
-    if (mainURL.host == "") {
-      notRegularPage(activeTab.url, mainURL.protocol);
+// If background.js stashed a passkey chooser context (see "passkey-chooser-context"
+// in background.js), show the passkey page instead of running the regular lookup flow.
+chrome.storage.session.get('passkeyChooserContext')
+  .then(({ passkeyChooserContext }) => {
+    if (passkeyChooserContext) {
+      chrome.storage.session.remove('passkeyChooserContext');
+      showPasskeyChooserPage(passkeyChooserContext);
       return;
     }
 
-    if (mainURL.protocol != "https:") {
-      if (mainURL.protocol == "http:") {
-        document.querySelector("#danger-http").style.display = "block";
-      } else {
+    chrome.tabs.query({ active: true, currentWindow: true })
+      .then(tabs => {
+        activeTab = tabs[0];
 
-        notRegularPage(activeTab.url, mainURL.protocol);
-        return;
-      }
-    }
+        let mainURL = new URL(activeTab.url);
 
-    let mainUrlFrames = [];  // do we need it?
-
-    chrome.webNavigation.getAllFrames({ tabId: activeTab.id })
-      .then(frameList => {
-        for (let frame of frameList) {
-          let frameURL = new URL(frame.url);
-          if ((frameURL.host !== "") || (frameURL.protocol == "https:")) {
-            validFrames.push(frame);
-            if (frameURL.host == mainURL.host) {
-              mainUrlFrames.push(frame);
-            }
-          }
-        }
-
-        if (mainUrlFrames.length == 0) {
-          notRegularPage(activeTab.url);
+        if (mainURL.host == "") {
+          notRegularPage(activeTab.url, mainURL.protocol);
           return;
         }
 
-        for (let frame of validFrames) {
-          installScript(activeTab, frame)
-        }
-      })
-      .catch(err => {
-        consoleLog('catch 105');
-        consoleLog(err);
+        if (mainURL.protocol != "https:") {
+          if (mainURL.protocol == "http:") {
+            document.querySelector("#danger-http").style.display = "block";
+          } else {
 
-      })
+            notRegularPage(activeTab.url, mainURL.protocol);
+            return;
+          }
+        }
+
+        let mainUrlFrames = [];  // do we need it?
+
+        chrome.webNavigation.getAllFrames({ tabId: activeTab.id })
+          .then(frameList => {
+            for (let frame of frameList) {
+              let frameURL = new URL(frame.url);
+              if ((frameURL.host !== "") || (frameURL.protocol == "https:")) {
+                validFrames.push(frame);
+                if (frameURL.host == mainURL.host) {
+                  mainUrlFrames.push(frame);
+                }
+              }
+            }
+
+            if (mainUrlFrames.length == 0) {
+              notRegularPage(activeTab.url);
+              return;
+            }
+
+            for (let frame of validFrames) {
+              installScript(activeTab, frame)
+            }
+          })
+          .catch(err => {
+            consoleLog('catch 105');
+            consoleLog(err);
+
+          })
+      });
+  })
+  .catch(err => {
+    consoleLog('catch 106');
+    consoleLog(err);
   });

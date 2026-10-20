@@ -1,7 +1,8 @@
 // GPL: https://github.com/passff/passff
 
-// const consoleLog = console.log;
-const consoleLog = () => { };
+const consoleLog = console.log;
+//const consoleLog = () => { };
+
 
 function fireEvent(el, name) {
   el.dispatchEvent(
@@ -164,7 +165,7 @@ function fillCredentials(loginData = null) {
   }
 
   if (!(usernameInput && passwordInput)) {
-    consoleLog('contentScript: looking for username & password inputs');
+    consoleLog('autofill: looking for username & password inputs');
     for (let input of inputs) {
       consoleLog('input');
       consoleLog(input);
@@ -203,7 +204,7 @@ function fillCredentials(loginData = null) {
   }
 
   if (usernameInput && passwordInput) {
-    consoleLog('contentScript done: username & password');
+    consoleLog('autofill done: username & password');
     setInputValue(usernameInput, loginData.username);
     setInputValue(passwordInput, loginData.password);
 
@@ -225,7 +226,7 @@ function fillCredentials(loginData = null) {
     return;
   }
   if (passwordInput) {
-    consoleLog('contentScript done: password');
+    consoleLog('autofill done: password');
     setInputValue(passwordInput, loginData.password);
 
     clearInterval(intervalID);
@@ -254,7 +255,7 @@ function fillCredentials(loginData = null) {
       // do nothing, already set
       return false;
     }
-    consoleLog('contentScript: username only');
+    consoleLog('autofill: username only');
     setInputValue(usernameInput, loginData.username);
 
     if (typeof usernameInput.id != 'undefined') {
@@ -266,7 +267,7 @@ function fillCredentials(loginData = null) {
   if (usernameInput == null && passwordInput == null) {
     //    if (fillCounter > 20) {
     if (true) {
-      consoleLog('contentScript nothing found');
+      consoleLog('autofill nothing found');
       clearInterval(intervalID);
       intervalID = null;
       return;
@@ -423,7 +424,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse(paymentStatus);
     return;
   }
-  sendResponse({ farewell: "contentScript goodbye" });
+  sendResponse({ farewell: "autofill goodbye" });
 }
 );
 
@@ -554,17 +555,9 @@ function fillCardData(card) {
 
   if (card.length > 8) {
     let zip = findByAutocompleteToken('postal-code');
-    /*
-        if (!zip) {
-          zip = altZip();
-        }
-    */
     if (zip) {
       setInputValue(zip, card[8]);
     }
   }
-
 }
-/*
-const pattern = new RegExp(`^(?:(?:shipping|billing)\\s+)?(?:${autocompleteTokens.join('|')})$`, 'i');
-*/
+

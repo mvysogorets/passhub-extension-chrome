@@ -1,7 +1,7 @@
 'use strict';
 
-// const consoleLog = console.log;
-const consoleLog = () => { };
+const consoleLog = console.log;
+//const consoleLog = () => { };
 
 let farewellCount = 0;
 
@@ -43,7 +43,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
 
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['contentScript.js']
+          files: ['autofill.js']
         })
           .then((injectionResult) => {
             consoleLog('inJectionResult');
@@ -108,9 +108,76 @@ function notConnected() {
     })
 }
 
+// requestId -> { tabId, frameId } of the page that is waiting for the passkey chooser result
+const pendingChoosers = new Map();
+
+// The chooser popup opens a port; its messages say which button was used and its
+// disconnect means the popup is gone. The outcome is relayed to the page that asked
+// (passkeyUrlBridge -> passkeyInterceptor).
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'passkey-chooser') return;
+
+  let requestId = null;
+  let choice = null;
+
+  port.onMessage.addListener((msg) => {
+    if (msg.requestId) requestId = msg.requestId;
+    if (msg.choice) choice = msg.choice;
+  });
+
+  port.onDisconnect.addListener(() => {
+    const target = pendingChoosers.get(requestId);
+    if (!target) return;
+    pendingChoosers.delete(requestId);
+
+    // choice is 'passhub' | 'system' | 'cancel' when a button was used,
+    // otherwise the popup was closed some other way (click outside, Esc, window closed).
+    chrome.tabs.sendMessage(target.tabId, {
+      id: 'passkey-chooser-result',
+      requestId,
+      choice: choice || 'dismissed'
+    }, { frameId: target.frameId })
+      .catch(err => consoleLog(err));
+  });
+});
+
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
+
+
+  if (popupMessage.id == "passkey-chooser-context") {
+    if (sender.tab?.id !== undefined) {
+      pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
+    }
+    chrome.storage.session.set({ passkeyChooserContext: popupMessage.data })
+      .then(() => chrome.action.openPopup({ windowId: sender.tab?.windowId }))
+      .catch(err => {
+        // Window has no toolbar (popup/app/devtools window): use a standalone window.
+        consoleLog('openPopup failed, opening popup window: ' + err.message);
+        return chrome.windows.create({
+          url: chrome.runtime.getURL('popup.html'),
+          type: 'popup',
+          width: 420,
+          height: 480
+        });
+      })
+      .then(() => {
+        consoleLog('popup successfully opened')
+        sendResponse({ status: 'ok' })
+      })
+      .catch(err => {
+        consoleLog(err);
+        sendResponse({ error: err.message });
+      });
+    return true; // async response
+  }
+
+
+
   consoleLog("bg got (popup) message");
   consoleLog(popupMessage);
+
+
+
 
   sendResponse({ status: 'wait' });
 

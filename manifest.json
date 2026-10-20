@@ -1,6 +1,6 @@
 {
   "name": "PassHub.net",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Securely autofill login forms and payment details with PassHub password manager, built using zero-trust architecture.",
   "author": "WWPass",
   "homepage_url": "https://wwpass.com",
@@ -47,6 +47,65 @@
     "48": "images/passhub-logo-48.png",
     "128": "images/passhub-logo-128.png"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost:8000/"
+      ],
+      "exclude": [
+        "https://passhub.com/*",
+        "https://passhub.net/*",
+        "https://passhub.ch/*",
+        "https://passhub.us/*",
+        "https://passhub.eu/*",
+        "https://*.passhub.com/*",
+        "https://*.passhub.net/*",
+        "https://*.passhub.ch/*",
+        "https://*.passhub.us/*",
+        "https://*.passhub.eu/*"
+      ],
+      "js": [
+        "passkeyUrlBridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost:8000/"
+      ],
+      "exclude": [
+        "https://passhub.com/*",
+        "https://passhub.net/*",
+        "https://passhub.ch/*",
+        "https://passhub.us/*",
+        "https://passhub.eu/*",
+        "https://*.passhub.com/*",
+        "https://*.passhub.net/*",
+        "https://*.passhub.ch/*",
+        "https://*.passhub.us/*",
+        "https://*.passhub.eu/*"
+      ],
+      "js": [
+        "passkeyInterceptor.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAubjP11t//uccic4AGiVJRd89cIO8I3NoOChckHIDpxPSvxxAMD6864033bJJWWmjU6/fKq+au92kb7akwDaGZphTDKDaNdZjadx4g9oF/PIqHbE/loKoaIJ8U1OPOACuS7UvTQVSW/JNDcvpZPD0rbAu6nJ5jV0b/7Pxt/SSraEHTtGOiIFNpBp4n/pnt8SpPli09iNDCYR+o+sTCWDgF4EgABAjOihogc45rCzGsyFZB8J/l9FCD8P2Kx8z243JRn/9HoS67xAgGBK/BBcaVjazLtRuQjRyVhS5xYAUPcnLnynyCRY4YEvmGpT0lz0RewUo+G+/E5EQpU7voaBl1QIDAQAB",
   "manifest_version": 3
 }
