@@ -1,5 +1,7 @@
 // GPL: https://github.com/passff/passff
 
+
+// defined in the same ISOLATED world in the PasshubUrlBridge 
 const consoleLog = console.log;
 //const consoleLog = () => { };
 

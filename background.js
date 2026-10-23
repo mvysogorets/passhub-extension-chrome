@@ -171,13 +171,8 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
     return true; // async response
   }
 
-
-
   consoleLog("bg got (popup) message");
   consoleLog(popupMessage);
-
-
-
 
   sendResponse({ status: 'wait' });
 

@@ -794,6 +794,11 @@ function showPage(pageSelector) {
 // in background.js), then shows it instead of the regular lookup flow.
 function showPasskeyChooserPage(context) {
   // document.body.classList.add('passkey-view');
+  /*
+    document.querySelector('#address').style.display = 'none';
+    document.querySelector('#credit-card').style.display = 'none';
+    document.querySelector('#password-icon').style.display = 'none';
+  */
 
   const mode = context.mode;
   const passkey = context.passkey || {};
