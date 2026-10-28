@@ -108,6 +108,39 @@ function notConnected() {
     })
 }
 
+// Defers msg until the connected PassHub tab asks for it ('clear to send').
+// Resolves "Ok" when the PassHub tab script is ready to fetch it, "not connected" otherwise.
+function sendToPassHub(msg) {
+  return chrome.storage.session.get("passhub")
+    .then(passhubWindow => {
+      consoleLog("session storage returns");
+      consoleLog(passhubWindow);
+      if (!passhubWindow.passhub) {
+        return "not connected";
+      }
+      return chrome.tabs.sendMessage(passhubWindow.passhub.peer.tab.id, {
+        id: "request to send",
+        origin: passhubWindow.passhub.origin,
+        version: ("version" in passhubWindow.passhub) ? passhubWindow.passhub.version : 1
+      })
+        .then(response => {
+          consoleLog('response to rts');
+          consoleLog(response);
+          if (response.farewell.includes('passhubTabScript')) {
+            deferredMsg = msg;
+            consoleLog('deferredMsg set to');
+            consoleLog(msg);
+            return "Ok";
+          }
+          return "not connected";
+        });
+    })
+    .catch(err => {
+      consoleLog(err);
+      return "not connected";
+    });
+}
+
 // requestId -> { tabId, frameId } of the page that is waiting for the passkey chooser result
 const pendingChoosers = new Map();
 
@@ -119,13 +152,26 @@ chrome.runtime.onConnect.addListener((port) => {
 
   let requestId = null;
   let choice = null;
+  let context = null; // full chooser context (mode, passkey, url, requestId) sent by the popup
 
   port.onMessage.addListener((msg) => {
     if (msg.requestId) requestId = msg.requestId;
+    if (msg.context) context = msg.context;
     if (msg.choice) choice = msg.choice;
+    if (choice == 'passhub') {
+      sendToPassHub(context)
+        .then(result => {
+          consoleLog('sendToPassHub: ' + result);
+          if (result == "not connected") {
+            choice = "cancel";
+            port.postMessage(result);
+          }
+        });
+    }
   });
 
   port.onDisconnect.addListener(() => {
+    console.log('port discannected');
     const target = pendingChoosers.get(requestId);
     if (!target) return;
     pendingChoosers.delete(requestId);
@@ -143,8 +189,8 @@ chrome.runtime.onConnect.addListener((port) => {
 
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
-
   if (popupMessage.id == "passkey-chooser-context") {
+    //message from passkeyBridge, just open popup with passkey page
     if (sender.tab?.id !== undefined) {
       pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
     }
@@ -176,34 +222,10 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
   sendResponse({ status: 'wait' });
 
-  chrome.storage.session.get("passhub")
-    .then(passhubWindow => {
-      consoleLog("session storage returns");
-      consoleLog(passhubWindow);
-      if (!passhubWindow.passhub) {
-        notConnected();
-      } else {
-        chrome.tabs.sendMessage(passhubWindow.passhub.peer.tab.id, {
-          id: "request to send",
-          origin: passhubWindow.passhub.origin,
-          version: ("version" in passhubWindow.passhub) ? passhubWindow.passhub.version : 1
-        })
-          .then(response => {
-            consoleLog('response to rts');
-            consoleLog(response);
-            if (response.farewell.includes('passhubTabScript')) {
-              deferredMsg = popupMessage;
-              consoleLog('deferredMsg set to');
-              consoleLog(popupMessage);
-            } else {
-              notConnected();
-            }
-          })
-          .catch(err => {
-            notConnected();
-          })
-      }
-    })
+  sendToPassHub(popupMessage)
+    .then(result => {
+      if (result != "Ok") notConnected();
+    });
 })
 
 function injectionOnInstall() {

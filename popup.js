@@ -1,11 +1,11 @@
 
+/*
 const consoleLog = () => { };
+const windowClose = () => { consoleLog('xxx') };
+*/
+
+const consoleLog = console.log;
 const windowClose = window.close;
-
-
-// const consoleLog = console.log;
-//const windowClose = () => { consoleLog('xxx') };
-
 
 let activeTab = null;
 
@@ -823,9 +823,24 @@ function showPasskeyChooserPage(context) {
   const port = chrome.runtime.connect({ name: 'passkey-chooser' });
   port.postMessage({ requestId: context.requestId });
 
+  port.onMessage.addListener((msg) => {
+    // only "not connected" may arrive
+    console.log('port got msg');
+    console.log(msg);
+
+    notConnected();
+    port.disconnect();
+  })
+
   const choose = (choice) => {
-    port.postMessage({ requestId: context.requestId, choice });
-    windowClose();
+
+    console.log('context');
+    console.log(context);
+
+    port.postMessage({ requestId: context.requestId, context, choice });
+    if (choice != 'passhub') {
+      windowClose();
+    }
   };
 
   document.querySelector('#passkey-passhub').addEventListener('click', () => choose('passhub'));
