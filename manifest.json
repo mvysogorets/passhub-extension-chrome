@@ -66,7 +66,7 @@
         "https://*.passhub.eu/*"
       ],
       "js": [
-        "passkeyUrlBridge.js"
+        "passkeyBridge.js"
       ],
       "run_at": "document_start",
       "all_frames": true
