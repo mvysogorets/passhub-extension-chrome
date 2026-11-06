@@ -3,6 +3,7 @@
 
 (function () {
 
+
   const consoleLog = console.log;
   //const consoleLog = () => { };
 
@@ -23,32 +24,59 @@
     const siteName = publicKey.rp?.name || publicKey.rp?.id || window.location.hostname;
     const userName = publicKey.user?.name || '';
 
-    const choice = await showPasskeyChooser('create', siteName, userName, options);
+    options.origin = window.location.origin;
 
-    if (choice === 'system') {
+    if (options.publicKey.challenge) {
+      options.publicKey.challenge = arrayBufferToBase64(options.publicKey.challenge);
+    }
+    if (options.publicKey.user?.id) {
+      options.publicKey.user.id = arrayBufferToBase64(options.publicKey.user?.id);
+    }
+
+    const response = await showPasskeyChooser('create', siteName, userName, options);
+    if (response?.id === 'passkey-create-response') {
+      let r = response.response;
+      r.rawId = base64ToArrayBuffer(r.rawId);
+      r.response.attestationObject = base64ToArrayBuffer(r.response.attestationObject);
+      r.response.clientDataJSON = base64ToArrayBuffer(r.response.clientDataJSON);
+      return r;
+    }
+    if (response === 'system') {
       return originalCreate(options);
     }
-    if (choice === 'cancel' || choice === 'dismissed') {
+    if (response === 'passhub') {
+      return true; // do nothing
+    }
+
+    if (response === 'cancel' || response === 'dismissed') {
       throw new DOMException('User cancelled', 'NotAllowedError');
     }
 
-    // choice === 'passhub'
-    const passkeyRequest = {
-      type: 'passkey-create',
-      rpId: publicKey.rp?.id || window.location.hostname,
-      rpName: siteName,
-      userName,
-      userDisplayName: publicKey.user?.displayName || '',
-      userHandle: publicKey.user?.id ? arrayBufferToBase64(publicKey.user.id) : null,
-      challenge: arrayBufferToBase64(publicKey.challenge),
-      origin: window.location.origin
-    };
+
+
+
+    /*
+        // choice === 'passhub'
+        const passkeyRequest = {
+          type: 'passkey-create',
+          rpId: publicKey.rp?.id || window.location.hostname,
+          rpName: siteName,
+          userName,
+          userDisplayName: publicKey.user?.displayName || '',
+          userHandle: publicKey.user?.id ? arrayBufferToBase64(publicKey.user.id) : null,
+          challenge: arrayBufferToBase64(publicKey.challenge),
+          origin: window.location.origin
+        };
+    */
+
 
     try {
-      const response = await sendToExtension({
-        id: 'passkey-create-request',
-        data: passkeyRequest
-      });
+      /*      
+            const response = await sendToExtension({
+              id: 'passkey-create-request',
+              data: passkeyRequest
+            });
+      */
 
       if (response && response.credential) {
         return reconstructCredential(response.credential, 'create');
@@ -136,64 +164,22 @@
   };
 
   /**
-  * Display an overlay for choosing an authenticator.
   * Returns Promise<'passhub' | 'system' | 'cancel' | 'dismissed'>;
   * 'dismissed' = popup closed without using any of its buttons.
    */
   function showPasskeyChooser(mode, siteName, userName, options) {
 
-    const extensionBaseUrl = document.documentElement.getAttribute('data-passhub-ext-url');
-    const popupUrl = extensionBaseUrl ? new URL('popup.html', extensionBaseUrl) : null;
-
     return new Promise((resolve) => {
-      if (!popupUrl) {
-        resolve('cancel');
-        return;
-      }
 
       const requestId = crypto.randomUUID();
 
-
-      /*      
-      const chooserUrl = new URL(popupUrl);
-      chooserUrl.searchParams.set('view', 'passkey');
-      chooserUrl.searchParams.set('requestId', requestId);
-      chooserUrl.searchParams.set('mode', mode);
-      chooserUrl.searchParams.set('siteName', siteName);
-      chooserUrl.searchParams.set('userName', userName);
-
-      const iframe = document.createElement('iframe');
-      iframe.setAttribute('title', mode === 'create' ? 'Save passkey' : 'Use passkey');
-      iframe.src = chooserUrl.href;
-      iframe.style.cssText = `
-                all: initial;
-                position: fixed;
-                top: 16px;
-                right: 16px;
-                z-index: 2147483647;
-                width: min(400px, calc(100vw - 24px));
-                height: 380px;
-                border: 0;
-                border-radius: 5px;
-                background: #fff;
-                box-shadow: 0 4px 34px rgba(27, 27, 38, 0.28);
-            `;
-
-      const cleanup = (result) => {
-        window.removeEventListener('message', responseHandler);
-        iframe.remove();
-        resolve(result);
-      };
-
-      const responseHandler = (event) => {
-        if (event.source !== iframe.contentWindow) return;
-        if (event.data?.type !== 'passhub-passkey-choice') return;
-        if (event.data.requestId !== requestId) return;
-        cleanup(event.data.choice);
-      };
-*/
       const resultHandler = (event) => {
         if (event.source !== window) return;
+        if (event.data?.id === 'passkey-create-response') {
+          window.removeEventListener('message', resultHandler);
+          resolve(event.data);
+        }
+
         if (event.data?.type !== 'passhub-passkey-chooser-result') return;
         if (event.data.requestId !== requestId) return;
         window.removeEventListener('message', resultHandler);
@@ -202,36 +188,49 @@
       window.addEventListener('message', resultHandler);
 
       // Hand the passkey options and page URL to passkeyUrlBridge (ISOLATED world).
+
       window.postMessage({
         type: 'passhub-passkey-chooser',
         requestId,
         mode,
-        passkey: serializePasskeyOptions(options?.publicKey),
+        //        passkey: serializePasskeyOptions(options?.publicKey),
+        options,
         url: window.location.href
       }, '*');
+
+      /*
+      
+            window.postMessage({
+              type: 'passhub-passkey-chooser',
+              requestId,
+              mode,
+              passkey: serializePasskeyOptions(options?.publicKey),
+              url: window.location.href
+            }, '*');
+      */
 
       //      document.documentElement.appendChild(iframe);
     });
   }
-
-  // Binary fields become base64url so the data is plain JSON-safe.
-  function serializePasskeyOptions(publicKey) {
-    if (!publicKey) return null;
-    const toB64 = (v) => (v ? arrayBufferToBase64(v) : null);
-    return {
-      rpId: publicKey.rpId || publicKey.rp?.id || window.location.hostname,
-      rpName: publicKey.rp?.name || null,
-      user: publicKey.user ? {
-        id: toB64(publicKey.user.id),
-        name: publicKey.user.name || '',
-        displayName: publicKey.user.displayName || ''
-      } : null,
-      challenge: toB64(publicKey.challenge),
-      allowCredentials: (publicKey.allowCredentials || []).map(c => ({ id: toB64(c.id), type: c.type })),
-      userVerification: publicKey.userVerification || null
-    };
-  }
-
+  /*
+    // Binary fields become base64url so the data is plain JSON-safe.
+    function serializePasskeyOptions(publicKey) {
+      if (!publicKey) return null;
+      const toB64 = (v) => (v ? arrayBufferToBase64(v) : null);
+      return {
+        rpId: publicKey.rpId || publicKey.rp?.id || window.location.hostname,
+        rpName: publicKey.rp?.name || null,
+        user: publicKey.user ? {
+          id: toB64(publicKey.user.id),
+          name: publicKey.user.name || '',
+          displayName: publicKey.user.displayName || ''
+        } : null,
+        challenge: toB64(publicKey.challenge),
+        allowCredentials: (publicKey.allowCredentials || []).map(c => ({ id: toB64(c.id), type: c.type })),
+        userVerification: publicKey.userVerification || null
+      };
+    }
+  */
   /**
    * Bridge: postMessage → contentScript → background
    */
@@ -261,28 +260,42 @@
   /**
    * Utilities
     */
+
+
+
+
   function arrayBufferToBase64(buffer) {
-    const bytes = new Uint8Array(buffer);
+
+    const uint8Array = new Uint8Array(buffer);
+    return uint8Array.toBase64({ alphabet: "base64url" });
+
+    /*    
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+*/
   }
 
 
-  function base64ToArrayBuffer(base64) {
-    // Restore padding.
-    base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4 !== 0) {
-      base64 += '=';
-    }
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
+  function base64ToArrayBuffer(base64string) {
+
+    return Uint8Array.fromBase64(base64string, { alphabet: "base64url" })
+    /*
+    
+        // Restore padding.
+        base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) {
+          base64 += '=';
+        }
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+    */
   }
 
   function normalizeBase64Url(base64) {

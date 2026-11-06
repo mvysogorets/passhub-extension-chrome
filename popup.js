@@ -800,9 +800,15 @@ function showPasskeyChooserPage(context) {
     document.querySelector('#password-icon').style.display = 'none';
   */
 
+  console.log('showPasskeyChooserPage got', context);
+
+
   const mode = context.mode;
-  const passkey = context.passkey || {};
-  let hostname = passkey.rpId || '';
+  const publicKey = context.options.publicKey || {};
+  console.log('showPasskeyChooserPage publicKey', publicKey);
+
+
+  let hostname = publicKey.rp?.Id || '';
   if (!hostname && context.url) {
     try {
       hostname = new URL(context.url).hostname;
@@ -810,8 +816,8 @@ function showPasskeyChooserPage(context) {
       consoleLog(err);
     }
   }
-  const siteName = passkey.rpName || hostname || 'this site';
-  const userName = passkey.user?.displayName || passkey.user?.name || '';
+  const siteName = publicKey.rp?.name || hostname || 'this site';
+  const userName = publicKey.user?.displayName || publicKey.user?.name || '';
 
   document.querySelector('#passkey-heading').textContent = mode === 'get' ? 'Sign in with passkey' : 'Create passkey';
   document.querySelector('#passkey-action').textContent = mode === 'get' ? 'Use a passkey for' : 'Save a passkey for';

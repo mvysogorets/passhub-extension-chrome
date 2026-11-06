@@ -53,7 +53,7 @@
         "https://*/*",
         "http://localhost:8000/"
       ],
-      "exclude": [
+      "exclude_matches": [
         "https://passhub.com/*",
         "https://passhub.net/*",
         "https://passhub.ch/*",
@@ -76,7 +76,7 @@
         "https://*/*",
         "http://localhost:8000/"
       ],
-      "exclude": [
+      "exclude_matches": [
         "https://passhub.com/*",
         "https://passhub.net/*",
         "https://passhub.ch/*",

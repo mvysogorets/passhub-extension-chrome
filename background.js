@@ -18,6 +18,7 @@ consoleLog(logtime() + 'passhub extension background start');
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   consoleLog(`external message from passhub window/ request from ${sender.url}`);
   consoleLog(request);
+
   if (!request) {
     consoleLog("no request");
     return;
@@ -30,6 +31,20 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     }
     sendResponse(deferredMsg);
     farewellCount++;
+    return;
+  }
+
+
+  if (request.id == 'passkey-create-response') {
+    sendToPasskeyInterceptor(request);
+    /*    
+        chrome.runtime.sendMessage(request)
+          .catch(err => {
+            consoleLog('catch 81');
+            consoleLog(err);
+          })
+    */
+    sendResponse({ farewell: `goodbye ${request.id} ${farewellCount}` });
     return;
   }
 
@@ -144,13 +159,27 @@ function sendToPassHub(msg) {
 // requestId -> { tabId, frameId } of the page that is waiting for the passkey chooser result
 const pendingChoosers = new Map();
 
+let requestId = null;
+
+
+function sendToPasskeyInterceptor(message) {
+  const target = pendingChoosers.get(requestId);
+  if (!target) return;
+  pendingChoosers.delete(requestId);
+
+  // choice is 'passhub' | 'system' | 'cancel' when a button was used,
+  // otherwise the popup was closed some other way (click outside, Esc, window closed).
+
+  chrome.tabs.sendMessage(target.tabId, message, { frameId: target.frameId })
+    .catch(err => consoleLog(err));
+};
+
 // The chooser popup opens a port; its messages say which button was used and its
 // disconnect means the popup is gone. The outcome is relayed to the page that asked
 // (passkeyUrlBridge -> passkeyInterceptor).
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'passkey-chooser') return;
 
-  let requestId = null;
   let choice = null;
   let context = null; // full chooser context (mode, passkey, url, requestId) sent by the popup
 
@@ -159,6 +188,17 @@ chrome.runtime.onConnect.addListener((port) => {
     if (msg.context) context = msg.context;
     if (msg.choice) choice = msg.choice;
     if (choice == 'passhub') {
+      console.log('background got passhub passkey choice from popup', context);
+      if (context.mode == 'create') {
+        context.id = "passkey-create";
+      }
+      if (context.mode == 'get') {
+        context.id = "passkey-get";
+      }
+
+      delete context.type; // passhub-passkey-chooser
+      delete context.mode; // moved to id
+
       sendToPassHub(context)
         .then(result => {
           consoleLog('sendToPassHub: ' + result);
@@ -171,26 +211,33 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 
   port.onDisconnect.addListener(() => {
-    console.log('port discannected');
-    const target = pendingChoosers.get(requestId);
-    if (!target) return;
-    pendingChoosers.delete(requestId);
-
+    console.log('port disconnected');
+    if (choice == 'passhub') {
+      return;
+    }
     // choice is 'passhub' | 'system' | 'cancel' when a button was used,
     // otherwise the popup was closed some other way (click outside, Esc, window closed).
-    chrome.tabs.sendMessage(target.tabId, {
+
+    sendToPasskeyInterceptor({
       id: 'passkey-chooser-result',
       requestId,
       choice: choice || 'dismissed'
-    }, { frameId: target.frameId })
-      .catch(err => consoleLog(err));
+    });
+
   });
+
+
 });
+
+
+
+
 
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
   if (popupMessage.id == "passkey-chooser-context") {
     //message from passkeyBridge, just open popup with passkey page
+    console.log('background got message from passkeyBridge', popupMessage);
     if (sender.tab?.id !== undefined) {
       pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
     }
@@ -199,12 +246,7 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
       .catch(err => {
         // Window has no toolbar (popup/app/devtools window): use a standalone window.
         consoleLog('openPopup failed, opening popup window: ' + err.message);
-        return chrome.windows.create({
-          url: chrome.runtime.getURL('popup.html'),
-          type: 'popup',
-          width: 420,
-          height: 480
-        });
+        return false;
       })
       .then(() => {
         consoleLog('popup successfully opened')
@@ -253,3 +295,4 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   });
 })
+
