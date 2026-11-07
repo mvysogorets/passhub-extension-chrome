@@ -53,30 +53,7 @@
     }
 
 
-
-
-    /*
-        // choice === 'passhub'
-        const passkeyRequest = {
-          type: 'passkey-create',
-          rpId: publicKey.rp?.id || window.location.hostname,
-          rpName: siteName,
-          userName,
-          userDisplayName: publicKey.user?.displayName || '',
-          userHandle: publicKey.user?.id ? arrayBufferToBase64(publicKey.user.id) : null,
-          challenge: arrayBufferToBase64(publicKey.challenge),
-          origin: window.location.origin
-        };
-    */
-
-
     try {
-      /*      
-            const response = await sendToExtension({
-              id: 'passkey-create-request',
-              data: passkeyRequest
-            });
-      */
 
       if (response && response.credential) {
         return reconstructCredential(response.credential, 'create');
@@ -111,15 +88,6 @@
     const publicKey = options.publicKey;
     const siteName = publicKey.rpId || window.location.hostname;
 
-    const choice = await showPasskeyChooser('get', siteName, '', options);
-
-    if (choice === 'system') {
-      return originalGet(options);
-    }
-    if (choice === 'cancel' || choice === 'dismissed') {
-      throw new DOMException('User cancelled', 'NotAllowedError');
-    }
-
     // choice === 'passhub'
     const passkeyRequest = {
       type: 'passkey-get',
@@ -132,6 +100,24 @@
       userVerification: publicKey.userVerification || 'preferred',
       origin: window.location.origin
     };
+
+    const allowCredentialsB64 = publicKey.allowCredentials?.map(cred => ({
+      id: arrayBufferToBase64(cred.id),
+      type: cred.type
+    })) || [];
+
+    options.publicKey.allowCredentials = allowCredentialsB64;
+
+
+    const choice = await showPasskeyChooser('get', siteName, '', options);
+
+    if (choice === 'system') {
+      return originalGet(options);
+    }
+    if (choice === 'cancel' || choice === 'dismissed') {
+      throw new DOMException('User cancelled', 'NotAllowedError');
+    }
+
 
     console.info('[PassHub WebAuthn] authentication request', JSON.stringify({
       rpId: passkeyRequest.rpId,
