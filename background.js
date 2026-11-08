@@ -35,7 +35,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
   }
 
 
-  if (request.id == 'passkey-create-response') {
+  if (request.id == 'passkey-create-response' || request.id == 'passkey-get-response') {
     sendToPasskeyInterceptor(request);
     /*    
         chrome.runtime.sendMessage(request)

@@ -88,28 +88,21 @@
     const publicKey = options.publicKey;
     const siteName = publicKey.rpId || window.location.hostname;
 
-    // choice === 'passhub'
-    const passkeyRequest = {
-      type: 'passkey-get',
-      rpId: siteName,
-      challenge: arrayBufferToBase64(publicKey.challenge),
-      allowCredentials: publicKey.allowCredentials?.map(cred => ({
-        id: arrayBufferToBase64(cred.id),
-        type: cred.type
-      })) || [],
-      userVerification: publicKey.userVerification || 'preferred',
-      origin: window.location.origin
+    // JSON-safe copy for PassHub (binary fields -> base64url); `options` stays intact for originalGet
+    const serializedOptions = {
+      origin: window.location.origin,
+      publicKey: {
+        rpId: publicKey.rpId,
+        challenge: arrayBufferToBase64(publicKey.challenge),
+        allowCredentials: (publicKey.allowCredentials || []).map(cred => ({
+          id: arrayBufferToBase64(cred.id),
+          type: cred.type
+        })),
+        userVerification: publicKey.userVerification || 'preferred'
+      }
     };
 
-    const allowCredentialsB64 = publicKey.allowCredentials?.map(cred => ({
-      id: arrayBufferToBase64(cred.id),
-      type: cred.type
-    })) || [];
-
-    options.publicKey.allowCredentials = allowCredentialsB64;
-
-
-    const choice = await showPasskeyChooser('get', siteName, '', options);
+    const choice = await showPasskeyChooser('get', siteName, '', serializedOptions);
 
     if (choice === 'system') {
       return originalGet(options);
@@ -118,35 +111,18 @@
       throw new DOMException('User cancelled', 'NotAllowedError');
     }
 
-
-    console.info('[PassHub WebAuthn] authentication request', JSON.stringify({
-      rpId: passkeyRequest.rpId,
-      origin: passkeyRequest.origin,
-      userVerification: passkeyRequest.userVerification,
-      allowCredentialsCount: passkeyRequest.allowCredentials.length,
-      allowCredentialIds: passkeyRequest.allowCredentials.map(credential => credential.id),
-      extensionNames: Object.keys(publicKey.extensions || {})
-    }));
-
-    try {
-      const response = await sendToExtension({
-        id: 'passkey-get-request',
-        data: passkeyRequest
-      });
-
-      if (response && response.assertion) {
-        return reconstructCredential(response.assertion, 'get', passkeyRequest);
-      } else if (response && response.useSystem) {
-        return originalGet(options);
-      } else if (response && response.error) {
-        throw responseToError(response);
-      } else {
-        throw new DOMException('PassHub: passkey authentication failed', 'NotAllowedError');
+    // PassHub answered: { id: 'passkey-get-response', assertion | error }
+    if (choice?.id === 'passkey-get-response') {
+      if (choice.assertion) {
+        return reconstructCredential(choice.assertion, 'get', {
+          challenge: serializedOptions.publicKey.challenge,
+          allowCredentials: serializedOptions.publicKey.allowCredentials
+        });
       }
-    } catch (error) {
-      console.error('PassHub passkey authentication failed:', error);
-      throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
+      throw new DOMException(`PassHub: ${choice.error || 'passkey authentication failed'}`, 'NotAllowedError');
     }
+
+    throw new DOMException('PassHub: passkey authentication failed', 'NotAllowedError');
   };
 
   /**
@@ -161,7 +137,7 @@
 
       const resultHandler = (event) => {
         if (event.source !== window) return;
-        if (event.data?.id === 'passkey-create-response') {
+        if (event.data?.id === 'passkey-create-response' || event.data?.id === 'passkey-get-response') {
           window.removeEventListener('message', resultHandler);
           resolve(event.data);
         }

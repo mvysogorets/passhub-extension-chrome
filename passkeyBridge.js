@@ -40,7 +40,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       choice: msg.choice
     }, '*');
     return;
-  } else if (msg?.id === 'passkey-create-response') {
+  } else if (msg?.id === 'passkey-create-response' || msg?.id === 'passkey-get-response') {
     window.postMessage(msg, '*');
     return;
   }
