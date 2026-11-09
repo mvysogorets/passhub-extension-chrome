@@ -53,7 +53,7 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       pendingSelect({ cancelled: true });
     }
     pendingSelect = sendResponse;
-    const context = { rpId: request.rpId, candidates: request.candidates };
+    const context = { rpId: request.rpId, title: request.title, candidates: request.candidates };
     chrome.storage.session.set({ passkeySelectContext: context })
       .then(() => chrome.runtime.sendMessage({ id: 'passkey-select-list', context })
         .then(() => chrome.storage.session.remove('passkeySelectContext')) // an open popup took it

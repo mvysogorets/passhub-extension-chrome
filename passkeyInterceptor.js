@@ -50,6 +50,9 @@
     };
 
     const response = await showPasskeyChooser('create', siteName, userName, serializedOptions);
+    if (response?.id === 'passkey-create-response' && !response.response) {
+      throw new DOMException(`PassHub: ${response.error || 'passkey creation failed'}`, 'NotAllowedError');
+    }
     if (response?.id === 'passkey-create-response') {
       const r = response.response;
       const clientDataJSON = base64ToArrayBuffer(r.response.clientDataJSON);
