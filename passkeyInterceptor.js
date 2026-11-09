@@ -24,22 +24,68 @@
     const siteName = publicKey.rp?.name || publicKey.rp?.id || window.location.hostname;
     const userName = publicKey.user?.name || '';
 
-    options.origin = window.location.origin;
+    // JSON/clone-safe copy for PassHub: no AbortSignal, binary fields -> base64url.
+    // `options` itself stays untouched so originalCreate(options) still works.
+    const serializedOptions = {
+      origin: window.location.origin,
+      publicKey: {
+        rp: publicKey.rp ? { id: publicKey.rp.id, name: publicKey.rp.name } : undefined,
+        user: publicKey.user ? {
+          id: arrayBufferToBase64(publicKey.user.id),
+          name: publicKey.user.name,
+          displayName: publicKey.user.displayName
+        } : undefined,
+        challenge: arrayBufferToBase64(publicKey.challenge),
+        pubKeyCredParams: (publicKey.pubKeyCredParams || []).map(p => ({ type: p.type, alg: p.alg })),
+        excludeCredentials: (publicKey.excludeCredentials || []).map(c => ({
+          type: c.type,
+          id: arrayBufferToBase64(c.id),
+          transports: c.transports ? Array.from(c.transports) : []
+        })),
+        authenticatorSelection: publicKey.authenticatorSelection
+          ? JSON.parse(JSON.stringify(publicKey.authenticatorSelection)) : undefined,
+        attestation: publicKey.attestation,
+        timeout: publicKey.timeout
+      }
+    };
 
-    if (options.publicKey.challenge) {
-      options.publicKey.challenge = arrayBufferToBase64(options.publicKey.challenge);
-    }
-    if (options.publicKey.user?.id) {
-      options.publicKey.user.id = arrayBufferToBase64(options.publicKey.user?.id);
-    }
-
-    const response = await showPasskeyChooser('create', siteName, userName, options);
+    const response = await showPasskeyChooser('create', siteName, userName, serializedOptions);
     if (response?.id === 'passkey-create-response') {
-      let r = response.response;
-      r.rawId = base64ToArrayBuffer(r.rawId);
-      r.response.attestationObject = base64ToArrayBuffer(r.response.attestationObject);
-      r.response.clientDataJSON = base64ToArrayBuffer(r.response.clientDataJSON);
-      return r;
+      const r = response.response;
+      const clientDataJSON = base64ToArrayBuffer(r.response.clientDataJSON);
+      const attestationObject = base64ToArrayBuffer(r.response.attestationObject);
+      const id = normalizeBase64Url(r.id);
+      // PublicKeyCredential look-alike: libraries (e.g. simplewebauthn) call its methods
+      return {
+        id,
+        rawId: base64ToArrayBuffer(r.rawId),
+        type: 'public-key',
+        authenticatorAttachment: 'platform',
+        getClientExtensionResults() {
+          return { credProps: { rk: true } };
+        },
+        toJSON() {
+          return {
+            id,
+            rawId: id,
+            type: 'public-key',
+            authenticatorAttachment: 'platform',
+            clientExtensionResults: { credProps: { rk: true } },
+            response: {
+              clientDataJSON: normalizeBase64Url(r.response.clientDataJSON),
+              attestationObject: normalizeBase64Url(r.response.attestationObject),
+              transports: ['internal']
+            }
+          };
+        },
+        response: {
+          clientDataJSON,
+          attestationObject,
+          getTransports() {
+            return ['internal'];
+          }
+        }
+      };
     }
     if (response === 'system') {
       return originalCreate(options);
@@ -138,6 +184,7 @@
       const resultHandler = (event) => {
         if (event.source !== window) return;
         if (event.data?.id === 'passkey-create-response' || event.data?.id === 'passkey-get-response') {
+          if (event.data.requestId && event.data.requestId !== requestId) return; // answer to another request
           window.removeEventListener('message', resultHandler);
           resolve(event.data);
         }

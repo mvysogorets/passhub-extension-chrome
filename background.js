@@ -5,6 +5,16 @@ const consoleLog = console.log;
 
 let farewellCount = 0;
 
+// sendResponse of the pending 'passkey-choose' request from the PassHub tab
+let pendingSelect = null;
+
+function resolveSelect(answer) {
+  if (!pendingSelect) return;
+  const respond = pendingSelect;
+  pendingSelect = null;
+  try { respond(answer); } catch (err) { consoleLog(err); }
+}
+
 let deferredMsg = null;
 
 function logtime() {
@@ -30,10 +40,30 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       consoleLog('error deferredMsg absent');  // happens from time to time... 
     }
     sendResponse(deferredMsg);
+    deferredMsg = null; // hand out once: a repeated "clear to send" must not replay an old request
     farewellCount++;
     return;
   }
 
+
+  if (request.id == 'passkey-choose') {
+    // PassHub found several passkeys for the site: let the user pick one in the popup.
+    // The answer ({index} or {cancelled}) is sent back as the response to this very message.
+    if (pendingSelect) {
+      pendingSelect({ cancelled: true });
+    }
+    pendingSelect = sendResponse;
+    const context = { rpId: request.rpId, candidates: request.candidates };
+    chrome.storage.session.set({ passkeySelectContext: context })
+      .then(() => chrome.runtime.sendMessage({ id: 'passkey-select-list', context })
+        .then(() => chrome.storage.session.remove('passkeySelectContext')) // an open popup took it
+        .catch(() => chrome.action.openPopup()))  // no popup open: open it, it reads the stored context
+      .catch(err => {
+        consoleLog(err);
+        resolveSelect({ cancelled: true });
+      });
+    return true; // async response
+  }
 
   if (request.id == 'passkey-create-response' || request.id == 'passkey-get-response') {
     sendToPasskeyInterceptor(request);
@@ -163,9 +193,10 @@ let requestId = null;
 
 
 function sendToPasskeyInterceptor(message) {
-  const target = pendingChoosers.get(requestId);
+  const id = message.requestId || requestId;
+  const target = pendingChoosers.get(id);
   if (!target) return;
-  pendingChoosers.delete(requestId);
+  pendingChoosers.delete(id);
 
   // choice is 'passhub' | 'system' | 'cancel' when a button was used,
   // otherwise the popup was closed some other way (click outside, Esc, window closed).
@@ -178,6 +209,15 @@ function sendToPasskeyInterceptor(message) {
 // disconnect means the popup is gone. The outcome is relayed to the page that asked
 // (passkeyUrlBridge -> passkeyInterceptor).
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'passkey-select') {
+    // popup showing the list of passkeys: a message carries the choice,
+    // a disconnect without a choice means the popup was closed (= cancel)
+    port.onMessage.addListener((msg) => {
+      if (msg && Number.isInteger(msg.index)) resolveSelect({ index: msg.index });
+    });
+    port.onDisconnect.addListener(() => resolveSelect({ cancelled: true }));
+    return;
+  }
   if (port.name !== 'passkey-chooser') return;
 
   let choice = null;

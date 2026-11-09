@@ -432,3 +432,31 @@ body.passkey-view main {
 .passkey-cancel:hover {
   color: #1b1b26;
 }
+.passkey-select-page {
+  padding: 8px 16px;
+}
+
+#passkey-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.passkey-select-item {
+  text-align: left;
+}
+
+.passkey-select-origin {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.passkey-select-user {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

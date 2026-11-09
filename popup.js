@@ -856,6 +856,41 @@ function showPasskeyChooserPage(context) {
   showPage(".passkey-page");
 }
 
+// Several passkeys match the site: show origin + username of each, report the choice to background.
+let passkeySelectPort = null;
+
+function showPasskeySelectPage(context) {
+  if (passkeySelectPort) {
+    passkeySelectPort.disconnect();  // newer request replaces the old one
+  }
+  const port = chrome.runtime.connect({ name: 'passkey-select' });
+  passkeySelectPort = port;
+
+  const list = document.querySelector('#passkey-select-list');
+  list.textContent = '';
+  for (const c of context.candidates || []) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'passkey-secondary passkey-select-item';
+
+    const origin = document.createElement('div');
+    origin.className = 'passkey-select-origin';
+    origin.textContent = c.origin || context.rpId || '';
+    const user = document.createElement('div');
+    user.className = 'passkey-select-user';
+    user.textContent = c.username || c.title || '';
+    button.append(origin, user);
+
+    button.addEventListener('click', () => {
+      port.postMessage({ index: c.index });
+      windowClose();
+    });
+    list.appendChild(button);
+  }
+  document.querySelector('#passkey-select-cancel').onclick = () => windowClose(); // disconnect = cancel
+  showPage('.passkey-select-page');
+}
+
 function activatePassHubDocTab() {
   const manifest = chrome.runtime.getManifest();
   const urlList = manifest.externally_connectable.matches;
@@ -909,6 +944,12 @@ document.querySelector('.close-popup').addEventListener('click', (ev) => {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
+  if (request.id === "passkey-select-list") {
+    sendResponse({ response: 'Bye' });
+    showPasskeySelectPage(request.context);
+    return;
+  }
+
   if (request.id === "not connected") {
     sendResponse({ response: 'Bye' })
     notConnected();
@@ -923,8 +964,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // If background.js stashed a passkey chooser context (see "passkey-chooser-context"
 // in background.js), show the passkey page instead of running the regular lookup flow.
-chrome.storage.session.get('passkeyChooserContext')
-  .then(({ passkeyChooserContext }) => {
+chrome.storage.session.get(['passkeyChooserContext', 'passkeySelectContext'])
+  .then(({ passkeyChooserContext, passkeySelectContext }) => {
+    if (passkeySelectContext) {
+      chrome.storage.session.remove('passkeySelectContext');
+      showPasskeySelectPage(passkeySelectContext);
+      return;
+    }
     if (passkeyChooserContext) {
       chrome.storage.session.remove('passkeyChooserContext');
       showPasskeyChooserPage(passkeyChooserContext);
