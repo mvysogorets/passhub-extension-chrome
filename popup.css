@@ -460,3 +460,32 @@ body.passkey-view main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.passkey-tree-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.passkey-tree-row:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.passkey-tree-arrow {
+  width: 18px;
+  flex: none;
+  text-align: center;
+  user-select: none;
+}
+
+.passkey-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passkey-tree-safe {
+  font-weight: 600;
+}

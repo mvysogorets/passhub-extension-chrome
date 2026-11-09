@@ -613,16 +613,16 @@ document.querySelector('#address').addEventListener('click', () => {
 
 /*------------------------------------------------*/
 
-function setServerName(message) {
+function setServerName(passhubInstance) {
 
   const passhubInstanceLink = document.getElementById('server-name-element');
-  if (('passhubInstance' in message) && (message.passhubInstance != "passhub.net") && (message.passhubInstance != "www.passhub.net")) {
-    if (message.passhubInstance.startsWith("www.")) {
-      passhubInstanceLink.innerText = message.passhubInstance.substring(4);
+  if (passhubInstance != "www.passhub.net") {
+    if (passhubInstance.startsWith("www.")) {
+      passhubInstanceLink.innerText = passhubInstance.substring(4);
     } else {
-      passhubInstanceLink.innerText = message.passhubInstance;
+      passhubInstanceLink.innerText = passhubInstance;
     }
-    passhubInstanceLink.href = `https://${message.passhubInstance}`
+    passhubInstanceLink.href = `https://${passhubInstance}`
     passhubInstanceLink.style.display = 'block';
   } else {
     passhubInstanceLink.innerText = '';
@@ -631,8 +631,9 @@ function setServerName(message) {
 }
 
 function renderAccounts(message) {
-
-  setServerName(message);
+  if ('passhubInstance' in message) {
+    setServerName(message.passhubInstance);
+  }
 
   foundRecords = message.found;
 
@@ -866,6 +867,50 @@ function showPasskeyChooserPage(context) {
 // Several passkeys match the site: show origin + username of each, report the choice to background.
 let passkeySelectPort = null;
 
+// Safe / folder tree (flat list with parent indexes), same structure as the safe panel in PassHub, no icons.
+// Safes start expanded, folders collapsed; the arrow toggles, a click on the name selects.
+function renderSelectTree(list, nodes, onSelect) {
+  const children = new Map(); // parent index -> [node]
+  for (const n of nodes) {
+    if (!children.has(n.parent)) children.set(n.parent, []);
+    children.get(n.parent).push(n);
+  }
+  const expanded = new Set(nodes.filter(n => n.isSafe).map(n => n.index));
+
+  const draw = () => {
+    list.textContent = '';
+    const walk = (parent, depth) => {
+      for (const n of children.get(parent) || []) {
+        const kids = children.get(n.index) || [];
+        const row = document.createElement('div');
+        row.className = 'passkey-tree-row';
+        row.style.paddingLeft = (depth * 20 + 4) + 'px';
+
+        const arrow = document.createElement('span');
+        arrow.className = 'passkey-tree-arrow';
+        arrow.textContent = kids.length ? (expanded.has(n.index) ? '▾' : '▸') : '';
+        if (kids.length) {
+          arrow.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (expanded.has(n.index)) expanded.delete(n.index); else expanded.add(n.index);
+            draw();
+          });
+        }
+        const name = document.createElement('span');
+        name.className = 'passkey-tree-name' + (n.isSafe ? ' passkey-tree-safe' : '');
+        name.textContent = n.name;
+        row.append(arrow, name);
+        row.addEventListener('click', () => onSelect(n.index));
+        list.appendChild(row);
+
+        if (kids.length && expanded.has(n.index)) walk(n.index, depth + 1);
+      }
+    };
+    walk(-1, 0);
+  };
+  draw();
+}
+
 function showPasskeySelectPage(context) {
 
   // setServerName();
@@ -879,6 +924,15 @@ function showPasskeySelectPage(context) {
     context.title || 'Choose a passkey';
   const list = document.querySelector('#passkey-select-list');
   list.textContent = '';
+  if (context.tree) {
+    renderSelectTree(list, context.candidates || [], (index) => {
+      port.postMessage({ index });
+      windowClose();
+    });
+    document.querySelector('#passkey-select-cancel').onclick = () => windowClose();
+    showPage('.passkey-select-page');
+    return;
+  }
   for (const c of context.candidates || []) {
     const button = document.createElement('button');
     button.type = 'button';
