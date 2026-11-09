@@ -613,7 +613,7 @@ document.querySelector('#address').addEventListener('click', () => {
 
 /*------------------------------------------------*/
 
-function renderAccounts(message) {
+function setServerName(message) {
 
   const passhubInstanceLink = document.getElementById('server-name-element');
   if (('passhubInstance' in message) && (message.passhubInstance != "passhub.net") && (message.passhubInstance != "www.passhub.net")) {
@@ -628,6 +628,11 @@ function renderAccounts(message) {
     passhubInstanceLink.innerText = '';
     passhubInstanceLink.style.display = 'none';
   }
+}
+
+function renderAccounts(message) {
+
+  setServerName(message);
 
   foundRecords = message.found;
 
@@ -800,6 +805,8 @@ function showPasskeyChooserPage(context) {
     document.querySelector('#password-icon').style.display = 'none';
   */
 
+  // setServerName();
+
   console.log('showPasskeyChooserPage got', context);
 
 
@@ -860,6 +867,8 @@ function showPasskeyChooserPage(context) {
 let passkeySelectPort = null;
 
 function showPasskeySelectPage(context) {
+
+  // setServerName();
   if (passkeySelectPort) {
     passkeySelectPort.disconnect();  // newer request replaces the old one
   }
