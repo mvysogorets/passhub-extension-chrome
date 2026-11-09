@@ -866,6 +866,8 @@ function showPasskeySelectPage(context) {
   const port = chrome.runtime.connect({ name: 'passkey-select' });
   passkeySelectPort = port;
 
+  document.querySelector('.passkey-select-page .passkey-heading').textContent =
+    context.title || 'Choose a passkey';
   const list = document.querySelector('#passkey-select-list');
   list.textContent = '';
   for (const c of context.candidates || []) {
@@ -875,7 +877,8 @@ function showPasskeySelectPage(context) {
 
     const origin = document.createElement('div');
     origin.className = 'passkey-select-origin';
-    origin.textContent = c.origin || context.rpId || '';
+    origin.textContent = c.origin ?? context.rpId ?? '';
+    if (!origin.textContent) origin.style.display = 'none';
     const user = document.createElement('div');
     user.className = 'passkey-select-user';
     user.textContent = c.username || c.title || '';
