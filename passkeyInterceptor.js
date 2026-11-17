@@ -58,6 +58,9 @@
       const clientDataJSON = base64ToArrayBuffer(r.response.clientDataJSON);
       const attestationObject = base64ToArrayBuffer(r.response.attestationObject);
       const id = normalizeBase64Url(r.id);
+      const authenticatorData = r.response.authenticatorData ? base64ToArrayBuffer(r.response.authenticatorData) : null;
+      const publicKey = r.response.publicKey ? base64ToArrayBuffer(r.response.publicKey) : null;
+      const publicKeyAlgorithm = r.response.publicKeyAlgorithm ?? -7;
       // PublicKeyCredential look-alike: libraries (e.g. simplewebauthn) call its methods
       return {
         id,
@@ -77,7 +80,10 @@
             response: {
               clientDataJSON: normalizeBase64Url(r.response.clientDataJSON),
               attestationObject: normalizeBase64Url(r.response.attestationObject),
-              transports: ['internal']
+              transports: ['internal'],
+              authenticatorData: r.response.authenticatorData ? normalizeBase64Url(r.response.authenticatorData) : undefined,
+              publicKey: r.response.publicKey ? normalizeBase64Url(r.response.publicKey) : undefined,
+              publicKeyAlgorithm
             }
           };
         },
@@ -86,6 +92,15 @@
           attestationObject,
           getTransports() {
             return ['internal'];
+          },
+          getAuthenticatorData() {
+            return authenticatorData;
+          },
+          getPublicKey() {
+            return publicKey;
+          },
+          getPublicKeyAlgorithm() {
+            return publicKeyAlgorithm;
           }
         }
       };
