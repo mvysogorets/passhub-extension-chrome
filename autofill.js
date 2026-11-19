@@ -1,10 +1,20 @@
 // GPL: https://github.com/passff/passff
 
 
-// defined in the same ISOLATED world in the PasshubUrlBridge 
-const consoleLog = console.log;
-//const consoleLog = () => { };
+/*
+if (typeof consoleLog === "function") {
 
+  console.log("consoleLog is defined and callable");
+} else {
+  console.log("consoleLog was not defined");
+  var consoleLog = console.log;   // var: make it viisble out of braces 
+  // var consoleLog = () => { };
+}
+*/
+// consoleLog is defined in passkeyBridge
+
+
+console.log('autofill started');
 
 function fireEvent(el, name) {
   el.dispatchEvent(
@@ -41,6 +51,36 @@ function initFillCredentials() {
   intervalID = null;
 }
 
+// Split OTP: a row of single-digit inputs (e.g. Cisco Webex activation code,
+// <div id="activationCodes"> with digit1..digit6, maxlength=1).
+// Returns the ordered group of inputs if `input` belongs to one, else null.
+function getSplitOtpGroup(input) {
+  if (!input.parentElement || input.maxLength !== 1) {
+    return null;
+  }
+  const group = Array.from(input.parentElement.querySelectorAll('input')).filter(
+    (i) => i.maxLength === 1 && ['text', 'tel', 'number', 'password'].includes(i.type.toLowerCase())
+  );
+  if (group.length < 4 || group.length > 10 || !group.includes(input)) {
+    return null;
+  }
+  const isNumeric = (i) =>
+    i.inputMode === 'numeric' || /^\[0-9\]/.test(i.pattern || '') || i.type.toLowerCase() === 'number';
+  const known = input.parentElement.id === 'activationCodes' || group.every(isNumeric);
+  return known ? group : null;
+}
+
+
+function fillSplitOtp(group, totp) {
+  const digits = String(totp).replace(/\D/g, '');
+  if (digits.length < group.length) {
+    return false;
+  }
+  group.forEach((input, idx) => setInputValue(input, digits[idx]));
+  return true;
+}
+
+
 function isTotpCandidate(input) {
   const autocomplete = input.getAttribute('autocomplete');
   if (autocomplete === "one-time-code") {
@@ -50,12 +90,43 @@ function isTotpCandidate(input) {
   if (input.name.toLowerCase().search("otp") != -1) {
     return true;
   }
+  if (input.name.toLowerCase().search("code") != -1) {
+    return true;
+  }
+
+  if ("placeholder" in input && input.placeholder.toLowerCase().search('enter code') != -1) {  //aws
+    return true;
+  }
+
+  if (input.hasAttribute('data-test-id')) {  // hubspot
+    const value = input.getAttribute('data-test-id');
+    if (value === 'two-factor-code-input') {
+      return true;
+    }
+  }
+
+  const url = new URL(document.URL);
+  if (url.host.endsWith("asana.com")) {
+    const h4s = document.getElementsByTagName('h4')
+
+    const h4sf = Array.from(h4s).filter(e => e.checkVisibility());
+    if (h4sf.length) {
+      if (h4sf[0].innerText == 'Enter authentication code') {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
 function isUsernameCandidate(input) {
 
   if (isTotpCandidate(input)) {
+    return false;
+  }
+
+  if (getSplitOtpGroup(input)) {
     return false;
   }
 
@@ -188,6 +259,18 @@ function fillCredentials(loginData = null) {
         return;
       }
 
+      if ("totp" in loginData) {
+        const otpGroup = getSplitOtpGroup(input);
+        if (otpGroup) {
+          if (fillSplitOtp(otpGroup, loginData.totp)) {
+            otpInput = input;
+            clearInterval(intervalID);
+            intervalID = null;
+          }
+          return;
+        }
+      }
+
       const itype = input.type.toLowerCase();
       if ((passwordInput == null) || (usernameInput == null)) {
         if ((itype == 'text') || (itype == 'email')) {
@@ -281,7 +364,7 @@ function altCardnum() {
   const inputs = document.querySelectorAll('input');
   for (const input of inputs) {
     consoleLog('input');
-    if (input.name.match(/card.{0,1}number|cc_number/i)) {
+    if (input.name.match(/card.{0,1}number|cc_number|accountNumber/i)) {
       return input;
     }
   }
@@ -347,6 +430,9 @@ function altCSC() {
   }
   if (!element) {
     element = document.querySelector('input[name="cc_cscv"]'); // e.g. vultr
+  }
+  if (!element) {
+    element = document.querySelector("#cardSecurityCode");
   }
   return element;
 }
@@ -562,4 +648,3 @@ function fillCardData(card) {
     }
   }
 }
-
