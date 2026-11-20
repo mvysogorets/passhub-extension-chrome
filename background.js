@@ -334,33 +334,46 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
       pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
     }
 
-    if (!verifyRpId(popupMessage, sender)) {
-      console.log('rp.id verification failed');
-      sendToPasskeyInterceptor({
-        id: 'passkey-chooser-result',
-        requestId: popupMessage.data.requestId,
-        choice: 'rp.id error'
-      });
-      return;
-    }
+    chrome.storage.session.get("passhub")
+      .then(passhubWindow => {
+
+        if (passhubWindow?.passhub && passhubWindow.passhub.version < 3) {
+          sendToPasskeyInterceptor({
+            id: 'passkey-chooser-result',
+            requestId: popupMessage.data.requestId,
+            choice: 'system'
+          });
+          return;
+        }
+
+        if (!verifyRpId(popupMessage, sender)) {
+          console.log('rp.id verification failed');
+          sendToPasskeyInterceptor({
+            id: 'passkey-chooser-result',
+            requestId: popupMessage.data.requestId,
+            choice: 'rp.id error'
+          });
+          return;
+        }
+
+        chrome.storage.session.set({ passkeyChooserContext: popupMessage.data })
+          .then(() => chrome.action.openPopup({ windowId: sender.tab?.windowId }))
+          .catch(err => {
+            // Window has no toolbar (popup/app/devtools window): use a standalone window.
+            consoleLog('openPopup failed, opening popup window: ' + err.message);
+            return false;
+          })
+          .then(() => {
+            consoleLog('popup successfully opened')
+            sendResponse({ status: 'ok' })
+          })
+          .catch(err => {
+            consoleLog(err);
+            sendResponse({ error: err.message });
+          });
 
 
-
-    chrome.storage.session.set({ passkeyChooserContext: popupMessage.data })
-      .then(() => chrome.action.openPopup({ windowId: sender.tab?.windowId }))
-      .catch(err => {
-        // Window has no toolbar (popup/app/devtools window): use a standalone window.
-        consoleLog('openPopup failed, opening popup window: ' + err.message);
-        return false;
       })
-      .then(() => {
-        consoleLog('popup successfully opened')
-        sendResponse({ status: 'ok' })
-      })
-      .catch(err => {
-        consoleLog(err);
-        sendResponse({ error: err.message });
-      });
     return true; // async response
   }
 
@@ -371,7 +384,10 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
   sendToPassHub(popupMessage)
     .then(result => {
-      if (result != "Ok") notConnected();
+      if (result != "Ok") {
+        //        chrome.storage.session.remove("passhub");
+        notConnected();
+      }
     });
 })
 
