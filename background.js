@@ -78,6 +78,49 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
     return;
   }
 
+
+  /* TODO: this is how to inject corectly
+
+
+
+  chrome.tabs.create({ url: request.url }).then(tab => {
+  const listener = (tabId, info) => {
+    if (tabId === tab.id && info.status === 'complete') {
+      chrome.tabs.onUpdated.removeListener(listener);
+      chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['autofill.js'] })
+        .then(() => chrome.tabs.sendMessage(tab.id, request))
+        .then(response => consoleLog(response))
+        .catch(err => consoleLog(err));
+    }
+  };
+  chrome.tabs.onUpdated.addListener(listener);
+});
+
+  function injectWhenLoaded(tabId, request, timeoutMs = 30000) {
+    const cleanup = () => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.tabs.onRemoved.removeListener(onRemoved);
+      clearTimeout(timer);
+    };
+  
+    const onUpdated = (id, info, tab) => {
+      if (id !== tabId || info.status !== 'complete') return;
+      cleanup();                                   // remove before the async work
+      chrome.scripting.executeScript({ target: { tabId }, files: ['autofill.js'] })
+        .then(() => chrome.tabs.sendMessage(tabId, request))
+        .then(consoleLog)
+        .catch(consoleLog);
+    };
+  
+    const onRemoved = (id) => { if (id === tabId) cleanup(); };
+  
+    const timer = setTimeout(cleanup, timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onRemoved.addListener(onRemoved);
+  }
+    */
+
+
   if (request.id == 'loginRequest') {
     // sent by passhub tab when user clicks on the URL link of password record, forward to the target URL
     sendResponse({ farewell: `goodbye ${request.id} ${farewellCount}` });
@@ -263,24 +306,46 @@ chrome.runtime.onConnect.addListener((port) => {
       requestId,
       choice: choice || 'dismissed'
     });
-
   });
-
-
 });
 
+function verifyRpId(msg, sender) {
+  try {
+    const rpId = (msg.data.mode == 'get') ? msg.data.options.publicKey.rpId : msg.data.options.publicKey.rp.id;
 
+    const pageUrl = new URL(sender.tab.url);
+    if (pageUrl.hostname === rpId) {
+      return true;
+    }
+    return false;
 
-
+  } catch (err) {
+    return false;
+  }
+}
 
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
   if (popupMessage.id == "passkey-chooser-context") {
     //message from passkeyBridge, just open popup with passkey page
     console.log('background got message from passkeyBridge', popupMessage);
+
     if (sender.tab?.id !== undefined) {
       pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
     }
+
+    if (!verifyRpId(popupMessage, sender)) {
+      console.log('rp.id verification failed');
+      sendToPasskeyInterceptor({
+        id: 'passkey-chooser-result',
+        requestId: popupMessage.data.requestId,
+        choice: 'rp.id error'
+      });
+      return;
+    }
+
+
+
     chrome.storage.session.set({ passkeyChooserContext: popupMessage.data })
       .then(() => chrome.action.openPopup({ windowId: sender.tab?.windowId }))
       .catch(err => {

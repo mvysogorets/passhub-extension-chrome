@@ -116,6 +116,9 @@
       throw new DOMException('User cancelled', 'NotAllowedError');
     }
 
+    if (response === 'rp.id error') {
+      throw new DOMException('Wrong request: illegal rp.Id', 'NotAllowedError');
+    }
 
     try {
 
@@ -130,7 +133,7 @@
       }
     } catch (error) {
       console.error('PassHub passkey creation failed:', error);
-      throw new DOMException(`PassHub: ${error.message}`, 'NotAllowedError');
+      throw new DOMException(`${error.message}`, 'NotAllowedError');
     }
   };
 
@@ -173,6 +176,10 @@
     }
     if (choice === 'cancel' || choice === 'dismissed') {
       throw new DOMException('User cancelled', 'NotAllowedError');
+    }
+
+    if (choice === 'rp.id error') {
+      throw new DOMException('Wrong request: illegal rp.Id', 'NotAllowedError');
     }
 
     // PassHub answered: { id: 'passkey-get-response', assertion | error }
