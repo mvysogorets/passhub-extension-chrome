@@ -181,6 +181,12 @@ function installScript(tab, frame) {
     .then(response => {
       consoleLog("got response");
       consoleLog(response);
+      // passkeyBridge.js is always present as a content script and has an onMessage
+      // listener, so a missing autofill.js no longer rejects: it resolves with undefined.
+      // Treat an empty response as "autofill.js is not loaded yet".
+      if (response === undefined || response === null) {
+        throw new Error('autofill.js not loaded');
+      }
       gotPaymentStatus(tab, frame, response);
     })
     .catch(err => {
