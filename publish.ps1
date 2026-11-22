@@ -6,7 +6,7 @@ Copy-Item popup.css passhub-extension
 Copy-Item popup.html passhub-extension
 Copy-Item manifest.json passhub-extension
 Copy-Item passhubTabScript.js passhub-extension
-Copy-Item contentScript.js passhub-extension
+Copy-Item autofill.js passhub-extension
 Copy-Item background.js passhub-extension
 Copy-Item options.js passhub-extension
 Copy-Item options.html passhub-extension

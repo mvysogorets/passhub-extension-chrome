@@ -5,7 +5,7 @@ copy popup.css passhub-extension
 copy popup.html passhub-extension
 copy manifest.json passhub-extension
 copy passhubTabScript.js passhub-extension
-copy contentScript.js passhub-extension
+copy autofill.js passhub-extension
 copy background.js passhub-extension
 copy options.js passhub-extension
 copy options.html passhub-extension
