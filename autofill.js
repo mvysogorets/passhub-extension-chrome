@@ -1,48 +1,9 @@
 // GPL: https://github.com/passff/passff
-console.log('PassHub: contentScript.js loaded on', window.location.href);
-// const consoleLog = console.log;
-// const consoleLog = () => { };
-  const consoleLog = console.log;
-const installPasskeyBridge = !globalThis.__passHubPasskeyBridgeInstalled;
-globalThis.__passHubPasskeyBridgeInstalled = true;
-// Inject Passkey interceptor into page context (must run before page scripts)
-if (installPasskeyBridge) (function injectPasskeyInterceptor() {
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('passkeyInterceptor.js');
-  script.onload = function() {
-    console.log('PassHub: Passkey interceptor injected successfully');
-    this.remove();
-  };
-  script.onerror = function() {
-    console.error('PassHub: Failed to inject passkeyInterceptor.js');
-    this.remove();
-  };
-  (document.head || document.documentElement).appendChild(script);
-})();
 
-// Relay: postMessage (page) ↔ chrome.runtime.sendMessage (background)
-if (installPasskeyBridge) window.addEventListener('message', async (event) => {
-  if (event.source !== window) return;
-  if (!event.data || event.data.type !== 'passhub-request') return;
 
-  const { requestId, id, data } = event.data;
-  consoleLog('PassHub relay: forwarding to background', id);
+// consoleLog is defined in passkeyBridge
 
-  try {
-    const response = await chrome.runtime.sendMessage({ id, data });
-    window.postMessage({ type: 'passhub-response', requestId, response }, '*');
-  } catch (error) {
-    consoleLog('PassHub relay error:', error);
-    const message = error.message === 'Extension context invalidated.'
-      ? 'PassHub extension was reloaded. Reload this page and try again.'
-      : error.message;
-    window.postMessage({
-      type: 'passhub-response',
-      requestId,
-      response: { error: message }
-    }, '*');
-  }
-});
+consoleLog('autofill started');
 
 function fireEvent(el, name) {
   el.dispatchEvent(
@@ -79,6 +40,35 @@ function initFillCredentials() {
   intervalID = null;
 }
 
+// Split OTP: a row of single-digit inputs (e.g. Cisco Webex activation code,
+// <div id="activationCodes"> with digit1..digit6, maxlength=1).
+// Returns the ordered group of inputs if `input` belongs to one, else null.
+function getSplitOtpGroup(input) {
+  if (!input.parentElement || input.maxLength !== 1) {
+    return null;
+  }
+  const group = Array.from(input.parentElement.querySelectorAll('input')).filter(
+    (i) => i.maxLength === 1 && ['text', 'tel', 'number', 'password'].includes(i.type.toLowerCase())
+  );
+  if (group.length < 4 || group.length > 10 || !group.includes(input)) {
+    return null;
+  }
+  const isNumeric = (i) =>
+    i.inputMode === 'numeric' || /^\[0-9\]/.test(i.pattern || '') || i.type.toLowerCase() === 'number';
+  const known = input.parentElement.id === 'activationCodes' || group.every(isNumeric);
+  return known ? group : null;
+}
+
+
+function fillSplitOtp(group, totp) {
+  const digits = String(totp).replace(/\D/g, '');
+  if (digits.length < group.length) {
+    return false;
+  }
+  group.forEach((input, idx) => setInputValue(input, digits[idx]));
+  return true;
+}
+
 
 function isTotpCandidate(input) {
   const autocomplete = input.getAttribute('autocomplete');
@@ -89,12 +79,47 @@ function isTotpCandidate(input) {
   if (input.name.toLowerCase().search("otp") != -1) {
     return true;
   }
+  if (input.name.toLowerCase().search("code") != -1) {
+    return true;
+  }
+
+  if ("placeholder" in input && input.placeholder.toLowerCase().search('enter code') != -1) {  //aws
+    return true;
+  }
+
+  if (input.hasAttribute('data-test-id')) {  // hubspot
+    const value = input.getAttribute('data-test-id');
+    if (value === 'two-factor-code-input') {
+      return true;
+    }
+  }
+
+  const url = new URL(document.URL);
+  if (url.host.endsWith("asana.com")) {
+    const h4s = document.getElementsByTagName('h4')
+
+    const h4sf = Array.from(h4s).filter(e => e.checkVisibility());
+    if (h4sf.length) {
+      if (h4sf[0].innerText == 'Enter authentication code') {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
 function isUsernameCandidate(input) {
 
   if (isTotpCandidate(input)) {
+    return false;
+  }
+
+  if (getSplitOtpGroup(input)) {
+    return false;
+  }
+
+  if (isPasswordCandidate(input)) {
     return false;
   }
 
@@ -117,6 +142,35 @@ function isUsernameCandidate(input) {
   }
 
   return true;
+}
+
+function isPasswordCandidate(input) {
+  const autocomplete = input.getAttribute('autocomplete');
+  if (autocomplete === "new-password" || autocomplete === "current-password") {
+    return true;
+  }
+
+  if (input.labels) {
+    for (const label of input.labels) {
+      if (label.textContent.toLowerCase().search("password") != -1) {
+        return true;
+      }
+    }
+  }
+
+  if (input.placeholder && input.placeholder.toLowerCase() === "password") {
+    return true;
+  }
+
+  if (input.type === "password") {
+    return true;
+  }
+
+  if ("id" in input && input.id == "password") {
+    return true;
+  }
+
+  return false;
 }
 
 function findAllInputs() {
@@ -173,7 +227,7 @@ function fillCredentials(loginData = null) {
   }
 
   if (!(usernameInput && passwordInput)) {
-    consoleLog('contentScript: looking for username & password inputs');
+    consoleLog('autofill: looking for username & password inputs');
     for (let input of inputs) {
       consoleLog('input');
       consoleLog(input);
@@ -194,6 +248,18 @@ function fillCredentials(loginData = null) {
         return;
       }
 
+      if ("totp" in loginData) {
+        const otpGroup = getSplitOtpGroup(input);
+        if (otpGroup) {
+          if (fillSplitOtp(otpGroup, loginData.totp)) {
+            otpInput = input;
+            clearInterval(intervalID);
+            intervalID = null;
+          }
+          return;
+        }
+      }
+
       const itype = input.type.toLowerCase();
       if ((passwordInput == null) || (usernameInput == null)) {
         if ((itype == 'text') || (itype == 'email')) {
@@ -201,11 +267,7 @@ function fillCredentials(loginData = null) {
         }
       }
 
-      if ("id" in input && input.id == "password") {
-        passwordInput = input;
-      }
-
-      if (itype === 'password') {
+      if (isPasswordCandidate(input)) {
         passwordInput = input;
       }
 
@@ -216,7 +278,7 @@ function fillCredentials(loginData = null) {
   }
 
   if (usernameInput && passwordInput) {
-    consoleLog('contentScript done: username & password');
+    consoleLog('autofill done: username & password');
     setInputValue(usernameInput, loginData.username);
     setInputValue(passwordInput, loginData.password);
 
@@ -238,7 +300,7 @@ function fillCredentials(loginData = null) {
     return;
   }
   if (passwordInput) {
-    consoleLog('contentScript done: password');
+    consoleLog('autofill done: password');
     setInputValue(passwordInput, loginData.password);
 
     clearInterval(intervalID);
@@ -267,7 +329,7 @@ function fillCredentials(loginData = null) {
       // do nothing, already set
       return false;
     }
-    consoleLog('contentScript: username only');
+    consoleLog('autofill: username only');
     setInputValue(usernameInput, loginData.username);
 
     if (typeof usernameInput.id != 'undefined') {
@@ -279,7 +341,7 @@ function fillCredentials(loginData = null) {
   if (usernameInput == null && passwordInput == null) {
     //    if (fillCounter > 20) {
     if (true) {
-      consoleLog('contentScript nothing found');
+      consoleLog('autofill nothing found');
       clearInterval(intervalID);
       intervalID = null;
       return;
@@ -291,7 +353,7 @@ function altCardnum() {
   const inputs = document.querySelectorAll('input');
   for (const input of inputs) {
     consoleLog('input');
-    if (input.name.match(/card.{0,1}number|cc_number/i)) {
+    if (input.name.match(/card.{0,1}number|cc_number|accountNumber/i)) {
       return input;
     }
   }
@@ -358,6 +420,9 @@ function altCSC() {
   if (!element) {
     element = document.querySelector('input[name="cc_cscv"]'); // e.g. vultr
   }
+  if (!element) {
+    element = document.querySelector("#cardSecurityCode");
+  }
   return element;
 }
 
@@ -396,15 +461,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   consoleLog(sender.tab ?
     "from a content script:" + sender.tab.url :
     "from the extension");
-
-  if (
-    message.id === "request to send" ||
-    message.id === "passkey-create-request" ||
-    message.id === "passkey-get-request"
-  ) {
-    return false;
-  }
-
   if (message.id === "loginRequest") {
     initFillCredentials();
 
@@ -445,7 +501,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse(paymentStatus);
     return;
   }
-  sendResponse({ farewell: "contentScript goodbye" });
+  sendResponse({ farewell: "autofill goodbye" });
 }
 );
 
@@ -576,17 +632,8 @@ function fillCardData(card) {
 
   if (card.length > 8) {
     let zip = findByAutocompleteToken('postal-code');
-    /*
-        if (!zip) {
-          zip = altZip();
-        }
-    */
     if (zip) {
       setInputValue(zip, card[8]);
     }
   }
-
 }
-/*
-const pattern = new RegExp(`^(?:(?:shipping|billing)\\s+)?(?:${autocompleteTokens.join('|')})$`, 'i');
-*/

@@ -1,11 +1,13 @@
 
+/*
+const windowClose = () => { consoleLog('xxx') };
+const consoleLog = console.log;
+*/
+
+
+
 const consoleLog = () => { };
 const windowClose = window.close;
-
-
-// const consoleLog = console.log;
-//const windowClose = () => { consoleLog('xxx') };
-
 
 let activeTab = null;
 
@@ -181,6 +183,12 @@ function installScript(tab, frame) {
     .then(response => {
       consoleLog("got response");
       consoleLog(response);
+      // passkeyBridge.js is always present as a content script and has an onMessage
+      // listener, so a missing autofill.js no longer rejects: it resolves with undefined.
+      // Treat an empty response as "autofill.js is not loaded yet".
+      if (response === undefined || response === null) {
+        throw new Error('autofill.js not loaded');
+      }
       gotPaymentStatus(tab, frame, response);
     })
     .catch(err => {
@@ -190,7 +198,7 @@ function installScript(tab, frame) {
       chrome.scripting.executeScript(
         {
           target: { tabId: tab.id, frameIds: [frame.frameId] },
-          files: ['contentScript.js'],
+          files: ['autofill.js'],
         })
         .then(injectionResult => {
 
@@ -613,20 +621,26 @@ document.querySelector('#address').addEventListener('click', () => {
 
 /*------------------------------------------------*/
 
-function renderAccounts(message) {
+function setServerName(passhubInstance) {
 
   const passhubInstanceLink = document.getElementById('server-name-element');
-  if (('passhubInstance' in message) && (message.passhubInstance != "passhub.net") && (message.passhubInstance != "www.passhub.net")) {
-    if (message.passhubInstance.startsWith("www.")) {
-      passhubInstanceLink.innerText = message.passhubInstance.substring(4);
+  if (passhubInstance != "www.passhub.net") {
+    if (passhubInstance.startsWith("www.")) {
+      passhubInstanceLink.innerText = passhubInstance.substring(4);
     } else {
-      passhubInstanceLink.innerText = message.passhubInstance;
+      passhubInstanceLink.innerText = passhubInstance;
     }
-    passhubInstanceLink.href = `https://${message.passhubInstance}`
+    passhubInstanceLink.href = `https://${passhubInstance}`
     passhubInstanceLink.style.display = 'block';
   } else {
     passhubInstanceLink.innerText = '';
     passhubInstanceLink.style.display = 'none';
+  }
+}
+
+function renderAccounts(message) {
+  if ('passhubInstance' in message) {
+    setServerName(message.passhubInstance);
   }
 
   foundRecords = message.found;
@@ -789,6 +803,168 @@ function showPage(pageSelector) {
   thePage.style.display = 'block';
 }
 
+// Populates and shows the passkey chooser page using the context the background
+// script stashed in chrome.storage.session (see passkey-chooser-context handling
+// in background.js), then shows it instead of the regular lookup flow.
+function showPasskeyChooserPage(context) {
+  // document.body.classList.add('passkey-view');
+  /*
+    document.querySelector('#address').style.display = 'none';
+    document.querySelector('#credit-card').style.display = 'none';
+    document.querySelector('#password-icon').style.display = 'none';
+  */
+
+  // setServerName();
+
+  consoleLog('showPasskeyChooserPage got', context);
+
+
+  const mode = context.mode;
+  const publicKey = context.options.publicKey || {};
+  consoleLog('showPasskeyChooserPage publicKey', publicKey);
+
+
+  let hostname = publicKey.rp?.Id || '';
+  if (!hostname && context.url) {
+    try {
+      hostname = new URL(context.url).hostname;
+    } catch (err) {
+      consoleLog(err);
+    }
+  }
+  const siteName = publicKey.rp?.name || hostname || 'this site';
+  const userName = publicKey.user?.displayName || publicKey.user?.name || '';
+
+  document.querySelector('#passkey-heading').textContent = mode === 'get' ? 'Sign in with passkey' : 'Create passkey';
+  document.querySelector('#passkey-action').textContent = mode === 'get' ? 'Use a passkey for' : 'Save a passkey for';
+  document.querySelector('#passkey-site').textContent = siteName;
+  document.querySelector('#passkey-user').textContent = userName;
+  document.querySelector('#passkey-passhub').textContent = mode === 'get' ? 'Use PassHub' : 'Save in PassHub';
+
+  // The port's disconnect tells background the popup closed; the message says how.
+  const port = chrome.runtime.connect({ name: 'passkey-chooser' });
+  port.postMessage({ requestId: context.requestId });
+
+  port.onMessage.addListener((msg) => {
+    // only "not connected" may arrive
+    consoleLog('port got msg');
+    consoleLog(msg);
+
+    notConnected();
+    port.disconnect();
+  })
+
+  const choose = (choice) => {
+
+    consoleLog('context');
+    consoleLog(context);
+
+    port.postMessage({ requestId: context.requestId, context, choice });
+    if (choice != 'passhub') {
+      windowClose();
+    }
+  };
+
+  document.querySelector('#passkey-passhub').addEventListener('click', () => choose('passhub'));
+  document.querySelector('#passkey-system').addEventListener('click', () => choose('system'));
+  document.querySelector('#passkey-cancel').addEventListener('click', () => choose('cancel'));
+
+  showPage(".passkey-page");
+}
+
+// Several passkeys match the site: show origin + username of each, report the choice to background.
+let passkeySelectPort = null;
+
+// Safe / folder tree (flat list with parent indexes), same structure as the safe panel in PassHub, no icons.
+// Safes start expanded, folders collapsed; the arrow toggles, a click on the name selects.
+function renderSelectTree(list, nodes, onSelect) {
+  const children = new Map(); // parent index -> [node]
+  for (const n of nodes) {
+    if (!children.has(n.parent)) children.set(n.parent, []);
+    children.get(n.parent).push(n);
+  }
+  const expanded = new Set(nodes.filter(n => n.isSafe).map(n => n.index));
+
+  const draw = () => {
+    list.textContent = '';
+    const walk = (parent, depth) => {
+      for (const n of children.get(parent) || []) {
+        const kids = children.get(n.index) || [];
+        const row = document.createElement('div');
+        row.className = 'passkey-tree-row';
+        row.style.paddingLeft = (depth * 20 + 4) + 'px';
+
+        const arrow = document.createElement('span');
+        arrow.className = 'passkey-tree-arrow';
+        arrow.textContent = kids.length ? (expanded.has(n.index) ? '▾' : '▸') : '';
+        if (kids.length) {
+          arrow.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (expanded.has(n.index)) expanded.delete(n.index); else expanded.add(n.index);
+            draw();
+          });
+        }
+        const name = document.createElement('span');
+        name.className = 'passkey-tree-name' + (n.isSafe ? ' passkey-tree-safe' : '');
+        name.textContent = n.name;
+        row.append(arrow, name);
+        row.addEventListener('click', () => onSelect(n.index));
+        list.appendChild(row);
+
+        if (kids.length && expanded.has(n.index)) walk(n.index, depth + 1);
+      }
+    };
+    walk(-1, 0);
+  };
+  draw();
+}
+
+function showPasskeySelectPage(context) {
+
+  // setServerName();
+  if (passkeySelectPort) {
+    passkeySelectPort.disconnect();  // newer request replaces the old one
+  }
+  const port = chrome.runtime.connect({ name: 'passkey-select' });
+  passkeySelectPort = port;
+
+  document.querySelector('.passkey-select-page .passkey-heading').textContent =
+    context.title || 'Choose a passkey';
+  const list = document.querySelector('#passkey-select-list');
+  list.textContent = '';
+  if (context.tree) {
+    renderSelectTree(list, context.candidates || [], (index) => {
+      port.postMessage({ index });
+      windowClose();
+    });
+    document.querySelector('#passkey-select-cancel').onclick = () => windowClose();
+    showPage('.passkey-select-page');
+    return;
+  }
+  for (const c of context.candidates || []) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'passkey-secondary passkey-select-item';
+
+    const origin = document.createElement('div');
+    origin.className = 'passkey-select-origin';
+    origin.textContent = c.origin ?? context.rpId ?? '';
+    if (!origin.textContent) origin.style.display = 'none';
+    const user = document.createElement('div');
+    user.className = 'passkey-select-user';
+    user.textContent = c.username || c.title || '';
+    button.append(origin, user);
+
+    button.addEventListener('click', () => {
+      port.postMessage({ index: c.index });
+      windowClose();
+    });
+    list.appendChild(button);
+  }
+  document.querySelector('#passkey-select-cancel').onclick = () => windowClose(); // disconnect = cancel
+  showPage('.passkey-select-page');
+}
+
 function activatePassHubDocTab() {
   const manifest = chrome.runtime.getManifest();
   const urlList = manifest.externally_connectable.matches;
@@ -842,6 +1018,12 @@ document.querySelector('.close-popup').addEventListener('click', (ev) => {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
+  if (request.id === "passkey-select-list") {
+    sendResponse({ response: 'Bye' });
+    showPasskeySelectPage(request.context);
+    return;
+  }
+
   if (request.id === "not connected") {
     sendResponse({ response: 'Bye' })
     notConnected();
@@ -854,53 +1036,73 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-chrome.tabs.query({ active: true, currentWindow: true })
-  .then(tabs => {
-    activeTab = tabs[0];
-
-    let mainURL = new URL(activeTab.url);
-
-    if (mainURL.host == "") {
-      notRegularPage(activeTab.url, mainURL.protocol);
+// If background.js stashed a passkey chooser context (see "passkey-chooser-context"
+// in background.js), show the passkey page instead of running the regular lookup flow.
+chrome.storage.session.get(['passkeyChooserContext', 'passkeySelectContext'])
+  .then(({ passkeyChooserContext, passkeySelectContext }) => {
+    if (passkeySelectContext) {
+      chrome.storage.session.remove('passkeySelectContext');
+      showPasskeySelectPage(passkeySelectContext);
+      return;
+    }
+    if (passkeyChooserContext) {
+      chrome.storage.session.remove('passkeyChooserContext');
+      showPasskeyChooserPage(passkeyChooserContext);
       return;
     }
 
-    if (mainURL.protocol != "https:") {
-      if (mainURL.protocol == "http:") {
-        document.querySelector("#danger-http").style.display = "block";
-      } else {
+    chrome.tabs.query({ active: true, currentWindow: true })
+      .then(tabs => {
+        activeTab = tabs[0];
 
-        notRegularPage(activeTab.url, mainURL.protocol);
-        return;
-      }
-    }
+        let mainURL = new URL(activeTab.url);
 
-    let mainUrlFrames = [];  // do we need it?
-
-    chrome.webNavigation.getAllFrames({ tabId: activeTab.id })
-      .then(frameList => {
-        for (let frame of frameList) {
-          let frameURL = new URL(frame.url);
-          if ((frameURL.host !== "") || (frameURL.protocol == "https:")) {
-            validFrames.push(frame);
-            if (frameURL.host == mainURL.host) {
-              mainUrlFrames.push(frame);
-            }
-          }
-        }
-
-        if (mainUrlFrames.length == 0) {
-          notRegularPage(activeTab.url);
+        if (mainURL.host == "") {
+          notRegularPage(activeTab.url, mainURL.protocol);
           return;
         }
 
-        for (let frame of validFrames) {
-          installScript(activeTab, frame)
-        }
-      })
-      .catch(err => {
-        consoleLog('catch 105');
-        consoleLog(err);
+        if (mainURL.protocol != "https:") {
+          if (mainURL.protocol == "http:") {
+            document.querySelector("#danger-http").style.display = "block";
+          } else {
 
-      })
+            notRegularPage(activeTab.url, mainURL.protocol);
+            return;
+          }
+        }
+
+        let mainUrlFrames = [];  // do we need it?
+
+        chrome.webNavigation.getAllFrames({ tabId: activeTab.id })
+          .then(frameList => {
+            for (let frame of frameList) {
+              let frameURL = new URL(frame.url);
+              if ((frameURL.host !== "") || (frameURL.protocol == "https:")) {
+                validFrames.push(frame);
+                if (frameURL.host == mainURL.host) {
+                  mainUrlFrames.push(frame);
+                }
+              }
+            }
+
+            if (mainUrlFrames.length == 0) {
+              notRegularPage(activeTab.url);
+              return;
+            }
+
+            for (let frame of validFrames) {
+              installScript(activeTab, frame)
+            }
+          })
+          .catch(err => {
+            consoleLog('catch 105');
+            consoleLog(err);
+
+          })
+      });
+  })
+  .catch(err => {
+    consoleLog('catch 106');
+    consoleLog(err);
   });
