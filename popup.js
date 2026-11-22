@@ -1,10 +1,12 @@
 
 /*
-const consoleLog = () => { };
 const windowClose = () => { consoleLog('xxx') };
+const consoleLog = console.log;
 */
 
-const consoleLog = console.log;
+
+
+const consoleLog = () => { };
 const windowClose = window.close;
 
 let activeTab = null;
@@ -814,12 +816,12 @@ function showPasskeyChooserPage(context) {
 
   // setServerName();
 
-  console.log('showPasskeyChooserPage got', context);
+  consoleLog('showPasskeyChooserPage got', context);
 
 
   const mode = context.mode;
   const publicKey = context.options.publicKey || {};
-  console.log('showPasskeyChooserPage publicKey', publicKey);
+  consoleLog('showPasskeyChooserPage publicKey', publicKey);
 
 
   let hostname = publicKey.rp?.Id || '';
@@ -845,8 +847,8 @@ function showPasskeyChooserPage(context) {
 
   port.onMessage.addListener((msg) => {
     // only "not connected" may arrive
-    console.log('port got msg');
-    console.log(msg);
+    consoleLog('port got msg');
+    consoleLog(msg);
 
     notConnected();
     port.disconnect();
@@ -854,8 +856,8 @@ function showPasskeyChooserPage(context) {
 
   const choose = (choice) => {
 
-    console.log('context');
-    console.log(context);
+    consoleLog('context');
+    consoleLog(context);
 
     port.postMessage({ requestId: context.requestId, context, choice });
     if (choice != 'passhub') {

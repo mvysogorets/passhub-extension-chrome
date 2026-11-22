@@ -3,9 +3,8 @@
 
 (function () {
 
-
-  const consoleLog = console.log;
-  //const consoleLog = () => { };
+  // const consoleLog = console.log;
+  const consoleLog = () => { };
 
 
   const originalCreate = navigator.credentials.create.bind(navigator.credentials);
@@ -393,24 +392,6 @@
         clientExtensionResults: {},
         type: 'public-key'
       };
-      console.info('[PassHub WebAuthn] assertion returned to RP', JSON.stringify({
-        credentialId,
-        credentialAllowed: !allowedIds.length || allowedIds.includes(credentialId),
-        clientDataType: clientData.type,
-        challengeMatches: normalizeBase64Url(clientData.challenge) === normalizeBase64Url(request.challenge || ''),
-        origin: clientData.origin,
-        crossOrigin: clientData.crossOrigin,
-        flags: `0x${flags.toString(16).padStart(2, '0')}`,
-        userPresent: Boolean(flags & 0x01),
-        userVerified: Boolean(flags & 0x04),
-        backupEligible: Boolean(flags & 0x08),
-        backupState: Boolean(flags & 0x10),
-        signCount: new DataView(authenticatorData.buffer).getUint32(33, false),
-        userHandleLength: userHandle?.byteLength || 0,
-        userHandleOmittedForAllowList: Boolean(allowedIds.length && data.userHandle),
-        toJSONSupported: true,
-        signatureLength: base64ToArrayBuffer(data.signature).byteLength
-      }));
       return {
         id: credentialId,
         rawId: base64ToArrayBuffer(data.credentialId),

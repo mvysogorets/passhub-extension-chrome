@@ -1,7 +1,7 @@
 'use strict';
 
-const consoleLog = console.log;
-//const consoleLog = () => { };
+//const consoleLog = console.log;
+const consoleLog = () => { };
 
 let farewellCount = 0;
 
@@ -271,7 +271,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (msg.context) context = msg.context;
     if (msg.choice) choice = msg.choice;
     if (choice == 'passhub') {
-      console.log('background got passhub passkey choice from popup', context);
+      consoleLog('background got passhub passkey choice from popup', context);
       if (context.mode == 'create') {
         context.id = "passkey-create";
       }
@@ -294,7 +294,7 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 
   port.onDisconnect.addListener(() => {
-    console.log('port disconnected');
+    consoleLog('port disconnected');
     if (choice == 'passhub') {
       return;
     }
@@ -309,26 +309,11 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-function verifyRpId(msg, sender) {
-  try {
-    const rpId = (msg.data.mode == 'get') ? msg.data.options.publicKey.rpId : msg.data.options.publicKey.rp.id;
-
-    const pageUrl = new URL(sender.tab.url);
-    if (pageUrl.hostname === rpId) {
-      return true;
-    }
-    return false;
-
-  } catch (err) {
-    return false;
-  }
-}
-
 chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
 
   if (popupMessage.id == "passkey-chooser-context") {
     //message from passkeyBridge, just open popup with passkey page
-    console.log('background got message from passkeyBridge', popupMessage);
+    consoleLog('background got message from passkeyBridge', popupMessage);
 
     if (sender.tab?.id !== undefined) {
       pendingChoosers.set(popupMessage.data.requestId, { tabId: sender.tab.id, frameId: sender.frameId });
@@ -342,16 +327,6 @@ chrome.runtime.onMessage.addListener((popupMessage, sender, sendResponse) => {
             id: 'passkey-chooser-result',
             requestId: popupMessage.data.requestId,
             choice: 'system'
-          });
-          return;
-        }
-
-        if (!verifyRpId(popupMessage, sender)) {
-          console.log('rp.id verification failed');
-          sendToPasskeyInterceptor({
-            id: 'passkey-chooser-result',
-            requestId: popupMessage.data.requestId,
-            choice: 'rp.id error'
           });
           return;
         }

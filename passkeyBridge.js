@@ -1,8 +1,8 @@
 'use strict';
 
 
-const consoleLog = console.log;
-//const consoleLog = () => { };
+// const consoleLog = console.log;
+const consoleLog = () => { };
 
 
 // Runs in the isolated world, where chrome.runtime is available, and hands the
@@ -15,7 +15,7 @@ window.addEventListener('message', async (event) => {
   if (event.source !== window) return;
   if (!event.data || event.data.type !== 'passhub-passkey-chooser') return;
 
-  console.log('bridge got message', event.data);
+  consoleLog('bridge got message', event.data);
 
   //  const { requestId, mode, passkey, url } = event.data;
   try {
@@ -46,4 +46,3 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   return;
 });
-

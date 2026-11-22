@@ -7,8 +7,8 @@ Why do we need PasshubTabScript? - because an extension can only send messages t
 
 // now defined in passkeyBridge
 
-const consoleLog = console.log;
-// const consoleLog = () => { };
+// const consoleLog = console.log;
+const consoleLog = () => { };
 
 consoleLog('passhubTabScript start');
 

@@ -1,20 +1,9 @@
 // GPL: https://github.com/passff/passff
 
 
-/*
-if (typeof consoleLog === "function") {
-
-  console.log("consoleLog is defined and callable");
-} else {
-  console.log("consoleLog was not defined");
-  var consoleLog = console.log;   // var: make it viisble out of braces 
-  // var consoleLog = () => { };
-}
-*/
 // consoleLog is defined in passkeyBridge
 
-
-console.log('autofill started');
+consoleLog('autofill started');
 
 function fireEvent(el, name) {
   el.dispatchEvent(
